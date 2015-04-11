@@ -4,7 +4,7 @@ import zmq
 from time import sleep
 from random import random
 import itertools
-from lib import AddressManager, BrokerWithQueueing, AgentProcess, AgentThread, BrokerWithPool
+from lib import *
 import Queue
 context = zmq.Context()
 

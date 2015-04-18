@@ -139,25 +139,6 @@ class OrderRouter:
 zmqSocket = namedtuple('zmqSocket', 'name type')
 
 
-class Message(dict):
-	def __init__(self, sender, receiver):
-		self.sennder = sender
-		self.receiver = receiver
-
-	def __str__(self):
-		pass
-
-class OrderMessage(Message):
-	pass
-
-class TransactionMessage(Message):
-	pass
-
-class WorkerMessage(Message):
-	def __init__(self, msg_to_broker, msg_to_client):
-		pass
-
-
 class Auth(AgentProcess):
 	"""
 	REQ worker is frontend, connected to a broker

@@ -61,11 +61,8 @@ class AddressManager(object):
 		return 'something'
 
 
+zmqSocket = namedtuple('zmqSocket', 'name type')
 
-
-"""
-1) 
-"""
 
 class AgentProcess(Process):
 
@@ -280,14 +277,10 @@ class BrokerWithQueueing(AgentProcess):
 
 			if backend in sockets:
 
-				# request = backend.recv_multipart()
-				# # self.say('from worker: {}'.format(request))
-				# worker_id, message, client_id = request[0], request[2], request[4]
 				request = backend.recv_multipart()
 				# self.say('from worker: {}'.format(request))
 				worker_id, message, client_id = request[0], request[2], request[4]
-
-				message, client_id, client_msg
+				
 
 				if message in ["ready", "job complete"]:
 					workers.put(worker_id)

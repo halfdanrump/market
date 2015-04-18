@@ -7,6 +7,8 @@ import zmq
 import Queue
 from time import sleep
 from random import random
+from datetime import datetime
+from collections import namedtuple
 
 class AddressManager(object):
 
@@ -14,8 +16,13 @@ class AddressManager(object):
 
 	_key_prefix = 'endpoint_'
 	# endpoints = dict()
+	def __init__(self, endpoint_name, protocol, host, port = None):
+		AddressManager.register_endpoint(endpoint_name, protocol, host, port)
+
 	@staticmethod
 	def register_endpoint(endpoint_name, protocol, host, port = None):
+		assert isinstance(endpoint_name, str)
+		print('Registered endpoint {}'.format(endpoint_name))
 		if protocol == 'tcp' and port == None:
 			raise Exception('When using tcp, please also specify a port')
 		elif protocol == 'ipc' and port != None:
@@ -61,11 +68,12 @@ class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
 
-	def __init__(self, name_prefix, context):
+	def __init__(self, context, name):
+		assert isinstance(context, zmq.Context)
 		Process.__init__(self)
-		self.name = "{}_{}".format(id(self), name_prefix)
 		self.context = context
-		# self.start()
+		self.name = "{}_{}".format(id(self), name)
+		
 
 	@abc.abstractmethod
 	def run(self):
@@ -78,8 +86,7 @@ class AgentProcess(Process):
 		pass
 
 	def say(self, msg):
-		pass
-		# print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
  
 
 
@@ -87,10 +94,11 @@ class AgentThread(Thread):
 
 	__metaclass__ = abc.ABCMeta
 
-	def __init__(self, name_prefix, context, alive_event):
+	def __init__(self, context, name, alive_event):
+		assert isinstance(context, zmq.Context)
 		Thread.__init__(self)
-		self.name = "{}_{}".format(id(self), name_prefix)
 		self.context = context
+		self.name = "{}_{}".format(id(self), name)
 		self.alive_event = alive_event
 		# self.start()
 
@@ -105,20 +113,20 @@ class AgentThread(Thread):
 		pass
 
 	def say(self, msg):
-		pass
-		# print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+		# pass
+		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
 
 
-class REQWorkerThread(AgentThread):
-	pass
+
 
 class REQWorkerThread(AgentThread):
 		
-	def __init__(self, name_prefix, context, alive_event):
-		super(REQWorkerThread, self).__init__(name_prefix, context, alive_event)
+	def __init__(self, context, name, alive_event):
+		super(REQWorkerThread, self).__init__(context, name, alive_event)
 		self.setup()
 
 	def do_work(self):
+		sleep(1)
 		return sum(range(1000))
 
 	def fail_randomly(self):
@@ -161,42 +169,52 @@ class Auction(AgentProcess):
 			sockets = dict(poller.poll(100))
 			if backend in sockets:
 				reply = backend.recv_multipart()
-				print(reply)
 			backend.send_multipart(["", 'new transaction', "", ""])
 			sleep(random()/1)
 
+class Order:
+
+	code = "ORDER"
+
+	def __init__(self, owner_id, price, volume):
+		self.owner_id = owner_id
+		self.price = price
+		self.volume = volume
+
+	def __repr__(self):
+		return "{} {} {} {}".format(Order.CODE, self.owner, self.price, self.volume)
 
 
 
-
-
-
-
-
-class Authenticator(AgentProcess):
-
+class Message(object):
+	def __init__(self, content, sender_id = None, receiver_id = None):
+		self.message = [content, "", sender_id, "", receiver_id]
 	
-	def run(self):
-		
-		# in_socket = self.context.socket()
-		backend_db = self.context.socket(zmq.REQ)
-		backend_db.connect(AddressManager.get_connect_address('db_frontend'))
+	def send(self):
+		return 
 
-		for i in itertools.count():
-			workload = str(random())
-			backend_db.send(workload)
-			self.say('Sent request')
-			ack = backend_db.recv()
-			self.say(ack)
-			# if i == 10: break
-		backend_db.close()
+
+class BrokerWorker:
+	# [worker_id, "", client_id, "", workload]
+	pass
+
+class WorkerBroker:
+	# Worker: ["ready", "", ""]
+	# Worker: ['job complete', empty, client_id]
+	# Auth: ["job complete", "", trader_id]
+	pass
+
+class ClientBroker:
+	# Trader: ["", order] ()
+	# Auth: [trader_id, "", order] (auth is proxy so needs to send trader_id)
+	pass
 
 
 
 class BrokerWithQueueing(AgentProcess):
 
-	def __init__(self, name, context, frontend_name, backend_name, pool_name = None):
-		super(BrokerWithQueueing, self).__init__(name, context)
+	def __init__(self, context, name, frontend_name, backend_name):
+		super(BrokerWithQueueing, self).__init__(context, name)
 		self.frontend_name = frontend_name
 		self.backend_name = backend_name
 
@@ -214,23 +232,26 @@ class BrokerWithQueueing(AgentProcess):
 		jobs = Queue.Queue()
 
 		while True:
-			print('pending jobs: {}, workers in pool: {}'.format(jobs.qsize(), workers.qsize()))
-			sockets = dict(poller.poll(1000))	
 			
+			sockets = dict(poller.poll(1000))	
+
+			if sockets: self.say('pending jobs: {}, workers in pool: {}'.format(jobs.qsize(), workers.qsize()))
+
 			if backend in sockets:
+
 				request = backend.recv_multipart()
 				# self.say('from worker: {}'.format(request))
 				worker_id, message, client_id = request[0], request[2], request[4]
 				if message in ["ready", "job complete"]:
 					workers.put(worker_id)
-					self.say('workers in pool: {}'.format(workers.qsize()))
-				if client_id: frontend.send_multipart([client_id, "", message, "HERRO@!!"])
-
+					# self.say('workers in pool: {}'.format(workers.qsize()))
+				if client_id: 
+					frontend.send_multipart([client_id, "", message])
+				
 			if frontend in sockets:
 				request = frontend.recv_multipart()
 				client_id, workload = request[0], request[2]
 				jobs.put((client_id, workload))
-				
 			
 			if not jobs.empty() and not workers.empty():
 				worker_id = workers.get()
@@ -246,8 +267,9 @@ class BrokerWithQueueing(AgentProcess):
 
 
 class BrokerWithPool(BrokerWithQueueing):
-	def __init__(self, frontend_name, backend_name, n_workers_start, n_workers_max, context):
-		super(BrokerWithPool, self).__init__(self, context, frontend_name, backend_name)
+	def __init__(self, context, name, frontend_name, backend_name, n_workers_start = 2, n_workers_max = 10):
+		assert isinstance(context, zmq.Context)
+		super(BrokerWithPool, self).__init__(context, name, frontend_name, backend_name)
 		self.alive_event = Event()
 		self.alive_event.set()
 		self.n_workers_start = n_workers_start
@@ -256,8 +278,8 @@ class BrokerWithPool(BrokerWithQueueing):
 		self.started_workers = 0
 
 	def start_worker(self):
-		print('NEW WORKER')
-		REQWorkerThread('worker', self.context, self.alive_event).start()	
+		self.say('Starting worker...')
+		REQWorkerThread(self.context, '{}_{}'.format(self.name, 'worker'), self.alive_event).start()	
 		self.started_workers += 1
 
 	def run(self):

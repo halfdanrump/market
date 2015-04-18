@@ -10,6 +10,9 @@ from random import random
 from datetime import datetime
 from collections import namedtuple
 
+STATUS_READY = "1"
+ORDER_RECEIVED = "2"
+
 class AddressManager(object):
 
 	rcon = Redis()
@@ -89,6 +92,20 @@ class AgentProcess(Process):
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
  
 
+"""
+ from db_worker to trader:
+ [status_msg/order_receipt, "", client_addr]
+ SHOULD BE
+ [status_msg, "", client_addr, "", order_receipt]
+
+
+
+ from trader to worker:
+ ["order"]
+
+"""
+
+
 
 class AgentThread(Thread):
 
@@ -152,7 +169,9 @@ class REQWorkerThread(AgentThread):
 				client_id, empty, workload = request[0:3]
 				if workload == 'quit': break
 				self.do_work()		
-				self.frontend.send_multipart(['job complete', empty, client_id])
+				# self.frontend.send_multipart(['job complete', empty, client_id])
+				message = WorkerMsg(STATUS_READY, client_id, ORDER_RECEIVED)
+				# self.frontend.send_multipart(['job complete', empty, client_id])
 
 		self.frontend.close()
 
@@ -184,14 +203,10 @@ class Order:
 	def __repr__(self):
 		return "{} {} {} {}".format(Order.CODE, self.owner, self.price, self.volume)
 
+	# @staticmethod
+	# def from_str(string):
+	# 	try:
 
-
-class Message(object):
-	def __init__(self, content, sender_id = None, receiver_id = None):
-		self.message = [content, "", sender_id, "", receiver_id]
-	
-	def send(self):
-		return 
 
 
 class BrokerWorker:
@@ -209,6 +224,32 @@ class ClientBroker:
 	# Auth: [trader_id, "", order] (auth is proxy so needs to send trader_id)
 	pass
 
+
+from copy import copy
+
+class Message:
+
+	__metaclass__ = abc.ABCMeta
+
+	def zmqs(self, socket_type = None):
+		if socket_type == zmq.DEALER:
+			msg = copy(self.message)
+			self.message.insert(0, "")
+			return msg
+		else:
+			return self.message
+	
+	def recv(self, socket_type):
+		# if socket_type == zmq.ROUTER:
+		return self.message[::2]
+
+class WorkerMsg(Message):
+	""" Message sent from worker to client via a broker """
+	def __init__(self, status, client_addr, client_msg):		
+		self.message = [status, "", client_addr, "", client_msg]
+
+
+# class ClientMsg(Message):
 
 
 class BrokerWithQueueing(AgentProcess):
@@ -239,9 +280,15 @@ class BrokerWithQueueing(AgentProcess):
 
 			if backend in sockets:
 
+				# request = backend.recv_multipart()
+				# # self.say('from worker: {}'.format(request))
+				# worker_id, message, client_id = request[0], request[2], request[4]
 				request = backend.recv_multipart()
 				# self.say('from worker: {}'.format(request))
 				worker_id, message, client_id = request[0], request[2], request[4]
+
+				message, client_id, client_msg
+
 				if message in ["ready", "job complete"]:
 					workers.put(worker_id)
 					# self.say('workers in pool: {}'.format(workers.qsize()))

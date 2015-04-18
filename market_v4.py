@@ -90,13 +90,27 @@ class REQTrader(AgentProcess):
 		self.backend_name = backend_name
 		sleep(random())
 
+
+
 	def run(self):
 		backend = self.context.socket(zmq.DEALER)
 		backend.connect(AddressManager.get_connect_address(self.backend_name))
+
+		poller = zmq.Poller()
+		poller.register(backend, zmq.POLLIN)
+
 		while True:
-			order = 'new order {}'.format(random())
-			backend.send_multipart(["", order])
-			sleep(1)
+			
+
+			sockets = dict(poller.poll(1))
+			if backend in sockets:
+				ack = backend.recv()
+				self.say(ack)
+			else:
+			
+				order = 'new order {}'.format(random())
+				backend.send_multipart(["", order])
+				sleep(1)
 			# ack = backend.recv_multipart()
 			# self.say(ack)
 

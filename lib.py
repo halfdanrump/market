@@ -61,19 +61,30 @@ class AddressManager(object):
 		return 'something'
 
 
-zmqSocket = namedtuple('zmqSocket', 'name type')
+zmqSocket = namedtuple('zmqSocket', 'type bind')
 
 
 class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
 
-	def __init__(self, context, name):
-		assert isinstance(context, zmq.Context)
+
+
+	def __init__(self, name, frontend = None, backend = None):
+		# assert isinstance(frontend, zmqSocket) or None
+		# assert isinstance(backend, zmqSocket) or None
 		Process.__init__(self)
-		self.context = context
+		self.context = zmq.Context()
 		self.name = "{}_{}".format(id(self), name)
+		self.frontend_name = frontend
+		self.backend_name = backend
+		print('ASDASD')
 		
+
+	# def setup(self):
+	# 	self.frontend = self.context.socket(self.frontend_type)
+
+
 
 	@abc.abstractmethod
 	def run(self):
@@ -88,6 +99,39 @@ class AgentProcess(Process):
 	def say(self, msg):
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
  
+
+class REQTrader(AgentProcess):
+	"""
+	no frontend
+	backend is REQ or DEALER socket sending orders
+	"""
+
+	# def __init__(self, name_prefix, frontend_name, backend_name):
+	# 	super(REQTrader, self).__init__(name_prefix)
+	# 	sleep(random())
+
+
+	def run(self):
+		print(self.backend_name)
+		backend = self.context.socket(zmq.DEALER)
+		backend.connect(AddressManager.get_connect_address(self.backend_name))
+
+		poller = zmq.Poller()
+		poller.register(backend, zmq.POLLIN)
+
+		while True:
+			
+
+			sockets = dict(poller.poll(1))
+			if backend in sockets:
+				ack = backend.recv()
+				self.say(ack)
+			else:
+			
+				order = 'new order {}'.format(random())
+				backend.send_multipart(["", order])
+				sleep(1)
+
 
 """
  from db_worker to trader:
@@ -251,10 +295,7 @@ class WorkerMsg(Message):
 
 class BrokerWithQueueing(AgentProcess):
 
-	def __init__(self, context, name, frontend_name, backend_name):
-		super(BrokerWithQueueing, self).__init__(context, name)
-		self.frontend_name = frontend_name
-		self.backend_name = backend_name
+
 
 	def run(self):
 		frontend = self.context.socket(zmq.ROUTER)
@@ -307,14 +348,12 @@ class BrokerWithQueueing(AgentProcess):
 
 
 class BrokerWithPool(BrokerWithQueueing):
-	def __init__(self, context, name, frontend_name, backend_name, n_workers_start = 2, n_workers_max = 10):
-		assert isinstance(context, zmq.Context)
-		super(BrokerWithPool, self).__init__(context, name, frontend_name, backend_name)
+	def __init__(self, name, frontend_name, backend_name, n_workers_start = 2, n_workers_max = 10):
+		super(BrokerWithPool, self).__init__(name, frontend_name, backend_name)
 		self.alive_event = Event()
 		self.alive_event.set()
 		self.n_workers_start = n_workers_start
 		self.n_workers_max = n_workers_max
-		self.context = context
 		self.started_workers = 0
 
 	def start_worker(self):
@@ -323,7 +362,8 @@ class BrokerWithPool(BrokerWithQueueing):
 		self.started_workers += 1
 
 	def run(self):
-		for j in xrange(self.n_workers_start): self.start_worker()
+		for j in xrange(self.n_workers_start): 
+			self.start_worker()
 		try:
 			super(BrokerWithPool, self).run()
 		except KeyboardInterrupt:

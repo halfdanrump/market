@@ -78,39 +78,6 @@ class MarketProxy(AgentProcess):
 
 
 
-class REQTrader(AgentProcess):
-	"""
-	no frontend
-	backend is REQ or DEALER socket sending orders
-	"""
-
-	def __init__(self, context, name_prefix, frontend_name, backend_name):
-		super(REQTrader, self).__init__(context, name_prefix)
-		self.frontend_name = frontend_name
-		self.backend_name = backend_name
-		sleep(random())
-
-
-
-	def run(self):
-		backend = self.context.socket(zmq.DEALER)
-		backend.connect(AddressManager.get_connect_address(self.backend_name))
-
-		poller = zmq.Poller()
-		poller.register(backend, zmq.POLLIN)
-
-		while True:
-			
-
-			sockets = dict(poller.poll(1))
-			if backend in sockets:
-				ack = backend.recv()
-				self.say(ack)
-			else:
-			
-				order = 'new order {}'.format(random())
-				backend.send_multipart(["", order])
-				sleep(1)
 			# ack = backend.recv_multipart()
 			# self.say(ack)
 
@@ -136,7 +103,7 @@ class OrderRouter:
 		while True:
 			pass
 
-zmqSocket = namedtuple('zmqSocket', 'name type')
+
 
 
 class Auth(AgentProcess):
@@ -145,18 +112,13 @@ class Auth(AgentProcess):
 	backend is DEALER socket, handing jobs to DB broker
 
 	"""
-	def __init__(self, context, name_prefix, frontend_name, backend_name):
-		super(Auth, self).__init__(context, name_prefix)
-		self.frontend_name = frontend_name
-		self.backend_name = backend_name
-
+	
 	def check_order(self, order):
 		sleep(random())
 		return True
 
 	def run(self):
 		frontend = self.context.socket(zmq.REQ)
-		print(self.frontend_name)
 		frontend.connect(AddressManager.get_connect_address(self.frontend_name))
 		backend = self.context.socket(zmq.DEALER)
 		backend.connect(AddressManager.get_connect_address(self.backend_name))
@@ -214,33 +176,31 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 if __name__ == '__main__':
 	
-	for i in xrange(1): REQTrader(context, 'trader', None, 'market_frontend').start()	
+	for i in xrange(1): REQTrader('trader', None, 'market_frontend').start()	
+	# for i in xrange(1): REQTrader('trader', zmqSocket(type = )).start()	
 	
-	market_broker = BrokerWithQueueing(context, 'market_gateway', 'market_frontend', 'market_backend')
+	market_broker = BrokerWithQueueing('market_gateway', 'market_frontend', 'market_backend')
 	market_broker.start()
 	
-	for i in xrange(1): Auth(context, 'authenticator', 'market_backend', 'db_frontend').start()
+	for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend').start()
 
-# 	Auction(context, 'auction').start()
-	db_broker = BrokerWithPool(context, 'db_pool', 'db_frontend', 'db_backend')
+
+	db_broker = BrokerWithPool('db_pool', 'db_frontend', 'db_backend')
 	db_broker.start()
 
-	# sleep(1)
-	
-	
 
 
 
 
 
-	# alive_event = Event()
-	# alive_event.set()
-	# for j in xrange(10): 
-	# 	print('NEW WORKER')
-	# 	ThreadDBWorker('worker', context, alive_event).start()	
-	
 
-	# for j in xrange(10): DBWorker('worker', context).start()
-	# context.term()
-	# Thread(target = foo).start()
-	# Process(target = owner).start()
+
+
+
+
+
+
+
+
+
+

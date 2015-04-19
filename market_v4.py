@@ -6,90 +6,15 @@ import itertools
 from lib import *
 import Queue
 context = zmq.Context()
-
-
-
-class SimpleBroker(AgentProcess):
-	def run(self):
-		backend = self.context.socket(zmq.ROUTER)
-		backend.bind(AddressManager.get_bind_address('db_backend'))
-		backend.identity = 'backend'
-		while True:
-			request = backend.recv_multipart()
-			worker_id, msg, client_id = request[0], request[2], request[4]
-			self.say('sending work to worker')
-			client_id = '123'
-			backend.send_multipart([worker_id, "", client_id, "", 'workload'])		
-			
-
-
-
-
-
-
-
-
-
-# class DBWorker(AgentProcess):
-
-# 	def fail_randomly(self):
-# 		if random() < 0.9: 
-# 			message = 'ready'
-# 		else: 
-# 			message = 'failed'
-
-# 	def run(self):
-# 		socket = self.context.socket(zmq.REQ)
-# 		socket.connect(AddressManager.get_connect_address('db_backend'))
-# 		jobs_completed = 0
-# 		# self.say('ready')
-# 		socket.send_multipart(["ready", "", ""])	
-# 		while True:
-# 			request = socket.recv_multipart()
-# 			# self.say("from broker: {}".format(request))
-# 			client_id, empty, workload = request[0:3]
-# 			if workload == 'quit': break
-# 			# sleep(random())
-# 			sum(range(1000))
-						
-# 			jobs_completed += 1
-# 			# self.say("Finished working")
-# 			socket.send_multipart(['job complete', empty, client_id])
-# 		self.say('Jobs completed: {}'.format(jobs_completed))
-# 		socket.close()
-
-
-# class zmqSocket:
-# 	def __init__(self, name, )
-
-class MarketProxy(AgentProcess):
-
-	def __init__(self, name_prefix, frontend_name, backend_name, context):
-		super(MarketProxy, self).__init__(name_prefix, context)
-		self.frontend_name = frontend_name
-		self.backend_name = backend_name
-
-	def run(self):
-		frontend = self.context.socket(zmq.ROUTER)
-		frontend.bind(AddressManager.get_bind_address(self.frontend_name))
-		backend = self.context.socket(zmq.DEALER)
-		backend.bind(AddressManager.get_bind_address(self.backend_name))
-		zmq.proxy(frontend, backend)
-
-
-
-			# ack = backend.recv_multipart()
-			# self.say(ack)
+from traders import REQTrader
+from brokers import BrokerWithPool, BrokerWithQueueing
+from workers import REQWorkerThread
 
 class OrderRouter:
 	"""
 	frontend is ROUTER socket accepting authenticated orders
 	backend is PUB socket that sends out orders
 	"""
-
-	def __init__(self, context, name_prefix, frontend_name, backend_name):
-		self.frontend_name = frontend_name
-		self.backend_name = backend_name
 
 	def run(self):
 		frontend = self.context.socket(zmq.ROUTER)
@@ -128,42 +53,31 @@ class Auth(AgentProcess):
 		poller.register(backend, zmq.POLLIN)
 
 		self.say('ready')
-		frontend.send_multipart(["ready", "", ""])
+
+		frontend.send_multipart(WorkerMsg(STATUS_READY).message)
+
+		pending = dict()
 
 		while True:
 
 			sockets = dict(poller.poll(100))
 			if frontend in sockets:
 				msg = frontend.recv_multipart()
+				
 				trader_id, order = msg[0], msg[2]
+				self.say('message from trader: {}'.format(trader_id))
 				if self.check_order(order):
-					
 					### Send ACK back to trader
-					frontend.send_multipart(["job complete", "", trader_id])
+					msg = WorkerMsg(STATUS_READY, trader_id, ORDER_RECEIVED)
 					### Send order to database
 					backend.send_multipart([trader_id, "", order])
 				else:
-					frontend.send_multipart(["FAIL", "", trader_id])
-				
+					msg = WorkerMsg(STATUS_READY, trader_id, INVALID_ORDER)
+				# frontend.send_multipart([trader_id, "", "ASD"])
+				frontend.send_multipart(msg.message)
 
 			if backend in sockets:
-				pass
-
-# class Auction:s
-
-
-
-# class WorkerPool(Agent):
-# 	def run()
-
-
-# def foo():
-# 	print('Step 1: %s'%sum(range(10000000)))
-# 	sleep(3)
-# 	print('Step 2: %s'%sum(range(10000000)))
-
-# def owner():
-# 	Thread(target = foo).start()
+				self.say(backend.recv_multipart())
 
 
 
@@ -185,8 +99,8 @@ if __name__ == '__main__':
 	for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend').start()
 
 
-	db_broker = BrokerWithPool('db_pool', 'db_frontend', 'db_backend')
-	db_broker.start()
+	# db_broker = BrokerWithPool('db_pool', 'db_frontend', 'db_backend')
+	# db_broker.start()
 
 
 

@@ -12,6 +12,8 @@ from collections import namedtuple
 
 STATUS_READY = "1"
 ORDER_RECEIVED = "2"
+JOB_COMPLETE = "3"
+INVALID_ORDER = "4"
 
 class AddressManager(object):
 
@@ -68,9 +70,11 @@ class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
 
-	@abc.abstractproperty
-	def set_frontend(frontend): 
-		assert isinstance(frontend, zmqSocket)
+	# frontend = abc.abstractproperty()
+	# @abc.abstractproperty
+	# def sockets(frontend, backend): 
+	# 	assert isinstance(frontend, zmqSocket) or None
+	# 	assert isinstance(backend, zmqSocket) or None
 
 	def __init__(self, name, frontend = None, backend = None):
 		# assert isinstance(frontend, zmqSocket) or None
@@ -80,14 +84,7 @@ class AgentProcess(Process):
 		self.name = "{}_{}".format(id(self), name)
 		self.frontend_name = frontend
 		self.backend_name = backend
-		print('ASDASD')
 		
-
-	# def setup(self):
-	# 	self.frontend = self.context.socket(self.frontend_type)
-
-
-
 	@abc.abstractmethod
 	def run(self):
 		"""
@@ -95,44 +92,10 @@ class AgentProcess(Process):
 		"""
 		return
 
-	def register_at_DNS(self):
-		pass
-
 	def say(self, msg):
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
  
 
-class REQTrader(AgentProcess):
-	"""
-	no frontend
-	backend is REQ or DEALER socket sending orders
-	"""
-
-	# def __init__(self, name_prefix, frontend_name, backend_name):
-	# 	super(REQTrader, self).__init__(name_prefix)
-	# 	sleep(random())
-
-
-	def run(self):
-		print(self.backend_name)
-		backend = self.context.socket(zmq.DEALER)
-		backend.connect(AddressManager.get_connect_address(self.backend_name))
-
-		poller = zmq.Poller()
-		poller.register(backend, zmq.POLLIN)
-
-		while True:
-			
-
-			sockets = dict(poller.poll(1))
-			if backend in sockets:
-				ack = backend.recv()
-				self.say(ack)
-			else:
-			
-				order = 'new order {}'.format(random())
-				backend.send_multipart(["", order])
-				sleep(1)
 
 
 """
@@ -179,44 +142,54 @@ class AgentThread(Thread):
 
 
 
-class REQWorkerThread(AgentThread):
-		
-	def __init__(self, context, name, alive_event):
-		super(REQWorkerThread, self).__init__(context, name, alive_event)
-		self.setup()
-
-	def do_work(self):
-		sleep(1)
-		return sum(range(1000))
-
-	def fail_randomly(self):
-		if random() < 0.9: 
-			message = 'ready'
-		else: 
-			message = 'failed'
-
-	def setup(self):
-		self.frontend = self.context.socket(zmq.REQ)
-		self.frontend.connect(AddressManager.get_connect_address('db_backend'))
-		self.poller = zmq.Poller()
-		
 
 
-	def run(self):
-		self.poller.register(self.frontend, zmq.POLLIN)
-		self.frontend.send_multipart(["ready", "", ""])	
-		while self.alive_event.isSet():
-			sockets = dict(self.poller.poll(100))
-			if self.frontend in sockets:
-				request = self.frontend.recv_multipart()
-				client_id, empty, workload = request[0:3]
-				if workload == 'quit': break
-				self.do_work()		
-				# self.frontend.send_multipart(['job complete', empty, client_id])
-				message = WorkerMsg(STATUS_READY, client_id, ORDER_RECEIVED)
-				# self.frontend.send_multipart(['job complete', empty, client_id])
 
-		self.frontend.close()
+class WorkerMsg:
+	""" Message sent from worker to client via a broker 
+	:param status: Contains the status code of the worker, e.g. READY or SHUTTING_DOWN
+	:param client_addr: The address of the original client (not broker) that requsted the work
+	:param client_msg: Message to the client, such as result of calculation. 
+	"""
+	def __init__(self, status, client_addr = "", client_msg = ""):
+		assert int(status) in range(100), 'Status should be an integer code'
+		assert len(client_addr) == 5 or client_addr == "", client_addr
+		self.status = status
+		self.client_addr = client_addr
+		self.client_msg = client_msg
+		self.message = [status, "", client_addr, "", client_msg]
+
+	@staticmethod
+	def from_mulipart(l, socket_type):
+		msg = WorkerMsg(*l[2::2])
+		if socket_type == zmq.ROUTER:
+			msg.worker_addr = l[0]
+		return msg
+
+
+class ClientMsg:
+	# def __init__(self, client_addr = None, client_msg = None):
+	def __init__(self, client_msg, client_addr = ""):
+		assert len(client_addr) >= 5 or client_addr == "", client_addr
+		self.client_addr = client_addr
+		self.client_msg = client_msg
+		# self.message = [client_addr, "", client_msg]
+		self.message = [client_msg, "", client_addr]
+
+	@staticmethod
+	def to_multipart(self, socket_type):
+		pass
+
+	@staticmethod
+	def from_multipart(l, socket_type):
+		# print('ASLDKJAS')
+		# print(l)
+		# print("HUAR")
+		# print(l[2::2])
+		msg = ClientMsg(*l[::2])
+		# if socket_type == zmq.ROUTER:
+		# 	msg.client_addr = l[0]
+		return msg		
 
 
 
@@ -233,6 +206,15 @@ class Auction(AgentProcess):
 				reply = backend.recv_multipart()
 			backend.send_multipart(["", 'new transaction', "", ""])
 			sleep(random()/1)
+
+
+
+
+
+
+
+
+
 
 class Order:
 
@@ -286,145 +268,26 @@ class Message:
 		# if socket_type == zmq.ROUTER:
 		return self.message[::2]
 
-class WorkerMsg(Message):
-	""" Message sent from worker to client via a broker """
-	def __init__(self, status, client_addr, client_msg):		
-		self.message = [status, "", client_addr, "", client_msg]
 
+class Msg(object):
 
-# class ClientMsg(Message):
+	SENDER = b"0"
+	RECIPIENT = b"1"
+	PAYLOAD = b"2"
 
+	def __init__(self, sender, recipient, payload):
+		self.__dict__.update({'sender': sender, 'recipient': recipient, 'payload': payload})
 
-class BrokerWithQueueing(AgentProcess):
-
-
-
-	def run(self):
-		frontend = self.context.socket(zmq.ROUTER)
-		frontend.bind(AddressManager.get_bind_address(self.frontend_name))
-		backend = self.context.socket(zmq.ROUTER)
-		backend.bind(AddressManager.get_bind_address(self.backend_name))
-
-		poller = zmq.Poller()
-		poller.register(backend, zmq.POLLIN)
-		poller.register(frontend, zmq.POLLIN)
-		
-		workers = Queue.Queue()
-		jobs = Queue.Queue()
-
-		while True:
-			
-			sockets = dict(poller.poll(1000))	
-
-			if sockets: self.say('pending jobs: {}, workers in pool: {}'.format(jobs.qsize(), workers.qsize()))
-
-			if backend in sockets:
-
-				request = backend.recv_multipart()
-				# self.say('from worker: {}'.format(request))
-				worker_id, message, client_id = request[0], request[2], request[4]
-				
-
-				if message in ["ready", "job complete"]:
-					workers.put(worker_id)
-					# self.say('workers in pool: {}'.format(workers.qsize()))
-				if client_id: 
-					frontend.send_multipart([client_id, "", message])
-				
-			if frontend in sockets:
-				request = frontend.recv_multipart()
-				client_id, workload = request[0], request[2]
-				jobs.put((client_id, workload))
-			
-			if not jobs.empty() and not workers.empty():
-				worker_id = workers.get()
-				client_id, workload = jobs.get()
-				backend.send_multipart([worker_id, "", client_id, "", workload])
-
-			if jobs.qsize() > 10:
-				pass
-
-		backend.close()
-		frontend.close()
+	def wrap(self, msg):
+		pass
 
 
 
-class BrokerWithPool(BrokerWithQueueing):
-	def __init__(self, name, frontend_name, backend_name, n_workers_start = 2, n_workers_max = 10):
-		super(BrokerWithPool, self).__init__(name, frontend_name, backend_name)
-		self.alive_event = Event()
-		self.alive_event.set()
-		self.n_workers_start = n_workers_start
-		self.n_workers_max = n_workers_max
-		self.started_workers = 0
+# class SusperSocket(zmq.Socket):
 
-	def start_worker(self):
-		self.say('Starting worker...')
-		REQWorkerThread(self.context, '{}_{}'.format(self.name, 'worker'), self.alive_event).start()	
-		self.started_workers += 1
+# 	def __init__(self, name, socket_type, bind = False):
+# 		self.type = socket_type
+# 		self = 
+# 		if socket.bind
 
-	def run(self):
-		for j in xrange(self.n_workers_start): 
-			self.start_worker()
-		try:
-			super(BrokerWithPool, self).run()
-		except KeyboardInterrupt:
-				self.alive_event.clear()	
-
-
-
-# class BrokerWithQueueing(AgentProcess):
-
-# 	def __init__(self, name, context, frontend_name, backend_name, pool_name = None):
-# 		super(BrokerWithQueueing, self).__init__(name, context)
-# 		self.frontend_name = frontend_name
-# 		self.backend_name = backend_name
-# 		self.setup()
-
-# 	def setup(self):
-# 		self.frontend = self.context.socket(zmq.ROUTER)
-# 		self.frontend.bind(AddressManager.get_bind_address(self.frontend_name))
-# 		self.backend = self.context.socket(zmq.ROUTER)
-# 		self.backend.bind(AddressManager.get_bind_address(self.backend_name))
-
-		
-		
-# 		self.workers = Queue.Queue()
-# 		self.jobs = Queue.Queue()
-
-# 	def run(self):
-# 		poller = zmq.Poller()
-# 		poller.register(self.backend, zmq.POLLIN)
-# 		poller.register(self.frontend, zmq.POLLIN)
-
-# 		while True:
-# 			print('pending jobs: {}, workers in pool: {}'.format(self.jobs.qsize(), self.workers.qsize()))
-# 			print('ads')
-# 			sockets = dict(poller.poll(1000))	
-						
-# 			if self.backend in sockets:
-# 				request = self.backend.recv_multipart()
-# 				# self.say('from worker: {}'.format(request))
-# 				worker_id, message, client_id = request[0], request[2], request[4]
-# 				if message in ["ready", "job complete"]:
-# 					self.workers.put(worker_id)
-# 					self.say('workers in pool: {}'.format(self.workers.qsize()))
-# 				if client_id: self.frontend.send_multipart([client_id, "", message])
-
-# 			if self.frontend in sockets:
-# 				request = self.frontend.recv_multipart()
-# 				client_id, workload = request[0], request[2]
-# 				self.jobs.put((client_id, workload))
-				
-			
-# 			if not self.jobs.empty() and not self.workers.empty():
-# 				worker_id = self.workers.get()
-# 				client_id, workload = self.jobs.get()
-# 				self.backend.send_multipart([worker_id, "", client_id, "", workload])
-
-# 			if self.jobs.qsize() > 10:
-# 				pass
-
-# 		self.backend.close()
-# 		self.frontend.close()
 

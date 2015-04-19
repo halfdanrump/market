@@ -68,7 +68,9 @@ class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
 
-
+	@abc.abstractproperty
+	def set_frontend(frontend): 
+		assert isinstance(frontend, zmqSocket)
 
 	def __init__(self, name, frontend = None, backend = None):
 		# assert isinstance(frontend, zmqSocket) or None

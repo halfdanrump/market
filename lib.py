@@ -17,8 +17,13 @@ INVALID_ORDER = "INVALID ORDER"
 
 # Package = namedtuple('Package', 'addr msg encapsulated')
 
-class Package:
+class Package(object):
+
+	"""
+	send/recv tested with: REQ/REP, REP/ROUTER
+	"""
 	def __init__(self, addr, msg, encapsulated = None):
+		assert isinstance(encapsulated, Package) or encapsulated == None
 		self.addr = addr
 		self.msg = msg
 		self.package = [addr, "", msg, encapsulated]
@@ -26,70 +31,104 @@ class Package:
 	def __getitem__(self, idx):
 		return self.package[idx]
 
-	def unwrap(self, levels = 1):
-		package = self
-		for i in xrange(levels):
-			package = package[3]
-		return package
-
-	def send(self):
-		encapsulated = self[3]
-		msg = self[:3]
-		while encapsulated:
-			msg.extend(encapsulated[:3])
-			encapsulated = encapsulated[3]
-		return msg
-	
-	@staticmethod
-	def from_list(l):
-		l = copy(l)
-		l.reverse()
-		package = None
-		for addr, msg in zip(l[::3], l[2::3]):
-			package = Package(addr, msg, package)
-		return package
-
-	def show(self):
-		return str(self.send())
-
 	def __repr__(self):
 		if not self[3]:
 			return str(self[:3])
 		else:
 			return str(self[:3])[:-1] + ', [...]]'
 
-
-
-
-class PackageSimple(object):
-	def __init__(self, addr, msg, encapsulated = None):
-		self.addr = addr
-		self.msg = msg
-		self.package = [addr, "", msg, encapsulated]
-
-	def unwrap(self):
-		return self.package[3]
-
-	def send(self):
-		encapsulated = self.package[3]
-		msg = self.package[:3]
+	def __aslist__(self):
+		encapsulated = self[3]
+		msg = self[:3]
 		while encapsulated:
-			msg.extend(encapsulated.package[:3])
-			encapsulated = encapsulated.package[3]
-			return msg
-	
+			msg.extend(encapsulated[:3])
+			encapsulated = encapsulated[3]
+		return msg
+
 	@staticmethod
-	def from_list(l):
-		l = copy(l).reverse()
-		for i, (addr, msg) in enumerate(zip(l[::3], l[2::3])):
-			if i == 0:
-				package = Package(addr, msg)
-			else:
-				package = Package(addr, msg, package)
+	def __from_list__(l):
+		l = copy(l)
+		l.reverse()
+		package = None
+		for addr, msg in zip(l[2::3], l[::3]):
+			package = Package(addr, msg, package)
 		return package
 
-	def __repr__(self):
-		return str(self.package)
+	def unwrap(self, levels = 1):
+		package = self
+		for i in xrange(levels):
+			package = package[3]
+		return package
+
+	def send(self, socket):
+		assert isinstance(socket, zmq.Socket)
+		if socket.TYPE == zmq.ROUTER:
+			socket.send_multipart(self.__aslist__())
+		elif socket.TYPE == zmq.DEALER:
+			socket.send_multipart(self.__aslist__()[1:])
+		elif socket.TYPE == zmq.REQ or socket.TYPE == zmq.REP:
+			socket.send_multipart(self.__aslist__()[2:])
+		else:
+			raise Exception('not implemented')
+
+	def show(self):
+		return str(self.__aslist__())
+	
+	
+
+	@staticmethod
+	def recv(socket):
+		l = socket.recv_multipart()
+		if socket.TYPE == zmq.REP or socket.TYPE == zmq.REQ:
+			# Tested 
+			return Package.__from_list__([None, ''] + l)
+		elif socket.TYPE == zmq.ROUTER:
+			# Tested
+			return Package.__from_list__(l)
+		else:
+			raise Exception('not implemented')
+
+	
+
+	
+
+
+
+
+# class PackageSimple(object):
+# 	def __init__(self, addr, msg):
+# 		self.addr = addr
+# 		self.msg = msg
+# 		self.package = [addr, "", msg]
+
+# 	def append(package):
+# 		self.package.append(package)
+
+# 	def unwrap(self, levels = 1):
+# 		return self.package[3]
+
+# 	def send(self):
+# 		return self.package
+# 		# encapsulated = self.package[3]
+# 		# msg = self.package[:3]
+# 		# while encapsulated:
+# 		# 	msg.extend(encapsulated.package[:3])
+# 		# 	encapsulated = encapsulated.package[3]
+# 		# 	return msg
+	
+# 	@staticmethod
+# 	def from_list(l):
+# 		l = copy(l).reverse()
+# 		for i, (msg, addr) in enumerate(zip(l[::3], l[2::3])):
+# 			print(msg, addr)
+# 			if i == 0:
+# 				package = Package(addr, msg)
+# 			else:
+# 				package = Package(addr, msg, package)
+# 		return package
+
+# 	def __repr__(self):
+# 		return str(self.package)
 
 
 

@@ -9,11 +9,95 @@ from time import sleep
 from random import random
 from datetime import datetime
 from collections import namedtuple
+from copy import copy
+STATUS_READY = "READY"
+ORDER_RECEIVED = "ORDER VERIFIED"
+JOB_COMPLETE = "JOB COMPLETE"
+INVALID_ORDER = "INVALID ORDER"
 
-STATUS_READY = "1"
-ORDER_RECEIVED = "2"
-JOB_COMPLETE = "3"
-INVALID_ORDER = "4"
+# Package = namedtuple('Package', 'addr msg encapsulated')
+
+class Package:
+	def __init__(self, addr, msg, encapsulated = None):
+		self.addr = addr
+		self.msg = msg
+		self.package = [addr, "", msg, encapsulated]
+
+	def __getitem__(self, idx):
+		return self.package[idx]
+
+	def unwrap(self, levels = 1):
+		package = self
+		for i in xrange(levels):
+			package = package[3]
+		return package
+
+	def send(self):
+		encapsulated = self[3]
+		msg = self[:3]
+		while encapsulated:
+			msg.extend(encapsulated[:3])
+			encapsulated = encapsulated[3]
+		return msg
+	
+	@staticmethod
+	def from_list(l):
+		l = copy(l)
+		l.reverse()
+		package = None
+		for addr, msg in zip(l[::3], l[2::3]):
+			package = Package(addr, msg, package)
+		return package
+
+	def show(self):
+		return str(self.send())
+
+	def __repr__(self):
+		if not self[3]:
+			return str(self[:3])
+		else:
+			return str(self[:3])[:-1] + ', [...]]'
+
+
+
+
+class PackageSimple(object):
+	def __init__(self, addr, msg, encapsulated = None):
+		self.addr = addr
+		self.msg = msg
+		self.package = [addr, "", msg, encapsulated]
+
+	def unwrap(self):
+		return self.package[3]
+
+	def send(self):
+		encapsulated = self.package[3]
+		msg = self.package[:3]
+		while encapsulated:
+			msg.extend(encapsulated.package[:3])
+			encapsulated = encapsulated.package[3]
+			return msg
+	
+	@staticmethod
+	def from_list(l):
+		l = copy(l).reverse()
+		for i, (addr, msg) in enumerate(zip(l[::3], l[2::3])):
+			if i == 0:
+				package = Package(addr, msg)
+			else:
+				package = Package(addr, msg, package)
+		return package
+
+	def __repr__(self):
+		return str(self.package)
+
+
+
+# def test():
+
+# 	client_msg = Package(addr=client_addr, msg=db_result)
+# 	auth_msg = Package(addr=auth_addr, msg=status, encapsulated=client_msg)
+# 	trader_msg = 
 
 class AddressManager(object):
 
@@ -152,7 +236,7 @@ class WorkerMsg:
 	:param client_msg: Message to the client, such as result of calculation. 
 	"""
 	def __init__(self, status, client_addr = "", client_msg = ""):
-		assert int(status) in range(100), 'Status should be an integer code'
+		# assert int(status) in range(100), 'Status should be an integer code'
 		assert len(client_addr) == 5 or client_addr == "", client_addr
 		self.status = status
 		self.client_addr = client_addr

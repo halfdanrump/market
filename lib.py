@@ -10,6 +10,14 @@ from random import random
 from datetime import datetime
 from collections import namedtuple
 from copy import copy
+
+class MsgCode:
+	STATUS_READY = "READY"
+	ORDER_RECEIVED = "ORDER VERIFIED"
+	JOB_COMPLETE = "JOB COMPLETE"
+	INVALID_ORDER = "INVALID ORDER"
+
+
 STATUS_READY = "READY"
 ORDER_RECEIVED = "ORDER VERIFIED"
 JOB_COMPLETE = "JOB COMPLETE"
@@ -20,18 +28,24 @@ INVALID_ORDER = "INVALID ORDER"
 class Package(object):
 
 	"""
-	send/recv tested with: REQ/REP, REP/ROUTER
+	send/recv tested with: REQ/REP, REQ/ROUTER, DEALER/ROUTER, DEALER/REP
 	"""
-	def __init__(self, addr, msg, encapsulated = None):
+	def __init__(self, dest_addr = None, msg = None, encapsulated = None):
 		assert isinstance(encapsulated, Package) or encapsulated == None
-		self.addr = addr
+		self.dest_addr = dest_addr
 		self.msg = msg
-		self.package = [addr, "", msg, encapsulated]
+		self.encapsulated = encapsulated
+		
+
+	def __package__(self):
+		return [self.dest_addr, "", self.msg, self.encapsulated]
 
 	def __getitem__(self, idx):
-		return self.package[idx]
+		return self.__package__()[idx]
 
 	def __repr__(self):
+		return '<Package> {} from: {}, to: {}'.format(self.msg, getattr(self, 'sender_addr', None), getattr(self, 'dest_addr', None))
+
 		if not self[3]:
 			return str(self[:3])
 		else:
@@ -50,8 +64,8 @@ class Package(object):
 		l = copy(l)
 		l.reverse()
 		package = None
-		for addr, msg in zip(l[2::3], l[::3]):
-			package = Package(addr, msg, package)
+		for dest_addr, msg in zip(l[2::3], l[::3]):
+			package = Package(dest_addr = dest_addr, msg = msg, encapsulated = package)
 		return package
 
 	def unwrap(self, levels = 1):
@@ -59,6 +73,12 @@ class Package(object):
 		for i in xrange(levels):
 			package = package[3]
 		return package
+
+	def reply(self, socket):
+		assert socket.TYPE == zmq.ROUTER, 'Reply is only implemented for ROUTER sockets because these need to state the destination address explicitly. If you want to reply on a different socket type, just use Packet.send()'
+		assert hasattr(self, 'sender_addr'), 'Cannot reply '
+		self.dest_addr = self.sender_addr
+		self.send(socket)
 
 	def send(self, socket):
 		assert isinstance(socket, zmq.Socket)
@@ -84,7 +104,12 @@ class Package(object):
 			return Package.__from_list__([None, ''] + l)
 		elif socket.TYPE == zmq.ROUTER:
 			# Tested
-			return Package.__from_list__(l)
+			print(l)
+			package = Package.__from_list__([None, ''] + l[2:])
+			package.sender_addr = l[0]
+			return package 
+		elif socket.TYPE == zmq.DEALER:
+			return Package.__from_list__([None] + l)
 		else:
 			raise Exception('not implemented')
 
@@ -96,7 +121,7 @@ class Package(object):
 
 
 # class PackageSimple(object):
-# 	def __init__(self, addr, msg):
+# 	def __init__(self, dest_addr, msg):
 # 		self.addr = addr
 # 		self.msg = msg
 # 		self.package = [addr, "", msg]

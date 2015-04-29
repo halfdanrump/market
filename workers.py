@@ -93,20 +93,21 @@ class Auth(AgentProcess):
 
 			sockets = dict(poller.poll(100))
 			if frontend in sockets:
-				order = Package.recv(frontend)
-				# order = frontend.recv_multipart()
+				package = Package.recv(frontend)
+				# package = frontend.recv_multipart()
 				
-				# order = msg[0], msg[2]
-				self.say('On frontend: {}'.format(order))
-				if self.check_order(order.msg):
-					### Send order to database
-					self.say('Sending on backend: {}'.format(order))
-					order.send(backend)
+				# package = msg[0], msg[2]
+				self.say('On frontend: {}'.format(package))
+				if self.check_order(package.msg):
+					### Send package to database
+					self.say('Sending on backend: {}'.format(package))
+					package.send(backend)
 
 					### Send ACK back to trader
 					# frontend.send(MsgCode.ORDER_RECEIVED)
-					client_package = Package(msg = MsgCode.ORDER_RECEIVED)
-					broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_package)
+					client_p = package.encapsulated
+					client_p.msg = MsgCode.ORDER_RECEIVED
+					broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_p)
 					broker_package.send(frontend)
 
 					# msg = WorkerMsg(STATUS_READY, trader_id, ORDER_RECEIVED)

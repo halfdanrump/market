@@ -36,11 +36,8 @@ class BrokerWithQueueing(AgentProcess):
 				self.say('On backend: {}'.format(package))
 
 				if package.msg == MsgCode.JOB_COMPLETE:
-					completed = in_progress.pop(package.sender_addr)
 					if package.encapsulated:
-						self.say(package.encapsulated)
-						encapsulated = package.encapsulated
-						Package(dest_addr = completed.client, msg = encapsulated.msg).send(frontend)
+						package.encapsulated.send(frontend)
 					workers.put(package.sender_addr)
 				elif package.msg == STATUS_READY:					
 					workers.put(package.sender_addr)
@@ -57,8 +54,9 @@ class BrokerWithQueueing(AgentProcess):
 			if not jobs.empty() and not workers.empty():
 				worker_addr = workers.get()
 				job = jobs.get()
-				in_progress[worker_addr] = job
-				package = Package(worker_addr, job.work)
+				# in_progress[worker_addr] = job
+				client_p = Package(dest_addr = job.client)
+				package = Package(dest_addr = worker_addr, msg = job.work, encapsulated = client_p)
 				self.say('sending on backend: {}'.format(package))
 				package.send(backend)
 				

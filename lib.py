@@ -18,6 +18,7 @@ class MsgCode:
 	INVALID_ORDER = "INVALID ORDER"
 
 
+
 STATUS_READY = "READY"
 ORDER_RECEIVED = "ORDER VERIFIED"
 JOB_COMPLETE = "JOB COMPLETE"
@@ -291,58 +292,6 @@ class AgentThread(Thread):
 
 
 
-
-
-
-
-class WorkerMsg:
-	""" Message sent from worker to client via a broker 
-	:param status: Contains the status code of the worker, e.g. READY or SHUTTING_DOWN
-	:param client_addr: The address of the original client (not broker) that requsted the work
-	:param client_msg: Message to the client, such as result of calculation. 
-	"""
-	def __init__(self, status, client_addr = "", client_msg = ""):
-		# assert int(status) in range(100), 'Status should be an integer code'
-		assert len(client_addr) == 5 or client_addr == "", client_addr
-		self.status = status
-		self.client_addr = client_addr
-		self.client_msg = client_msg
-		self.message = [status, "", client_addr, "", client_msg]
-
-	@staticmethod
-	def from_mulipart(l, socket_type):
-		msg = WorkerMsg(*l[2::2])
-		if socket_type == zmq.ROUTER:
-			msg.worker_addr = l[0]
-		return msg
-
-
-class ClientMsg:
-	# def __init__(self, client_addr = None, client_msg = None):
-	def __init__(self, client_msg, client_addr = ""):
-		assert len(client_addr) >= 5 or client_addr == "", client_addr
-		self.client_addr = client_addr
-		self.client_msg = client_msg
-		# self.message = [client_addr, "", client_msg]
-		self.message = [client_msg, "", client_addr]
-
-	@staticmethod
-	def to_multipart(self, socket_type):
-		pass
-
-	@staticmethod
-	def from_multipart(l, socket_type):
-		# print('ASLDKJAS')
-		# print(l)
-		# print("HUAR")
-		# print(l[2::2])
-		msg = ClientMsg(*l[::2])
-		# if socket_type == zmq.ROUTER:
-		# 	msg.client_addr = l[0]
-		return msg		
-
-
-
 class Auction(AgentProcess):
 
 	def run(self):
@@ -377,67 +326,5 @@ class Order:
 
 	def __repr__(self):
 		return "{} {} {} {}".format(Order.CODE, self.owner, self.price, self.volume)
-
-	# @staticmethod
-	# def from_str(string):
-	# 	try:
-
-
-
-class BrokerWorker:
-	# [worker_id, "", client_id, "", workload]
-	pass
-
-class WorkerBroker:
-	# Worker: ["ready", "", ""]
-	# Worker: ['job complete', empty, client_id]
-	# Auth: ["job complete", "", trader_id]
-	pass
-
-class ClientBroker:
-	# Trader: ["", order] ()
-	# Auth: [trader_id, "", order] (auth is proxy so needs to send trader_id)
-	pass
-
-
-from copy import copy
-
-class Message:
-
-	__metaclass__ = abc.ABCMeta
-
-	def zmqs(self, socket_type = None):
-		if socket_type == zmq.DEALER:
-			msg = copy(self.message)
-			self.message.insert(0, "")
-			return msg
-		else:
-			return self.message
-	
-	def recv(self, socket_type):
-		# if socket_type == zmq.ROUTER:
-		return self.message[::2]
-
-
-class Msg(object):
-
-	SENDER = b"0"
-	RECIPIENT = b"1"
-	PAYLOAD = b"2"
-
-	def __init__(self, sender, recipient, payload):
-		self.__dict__.update({'sender': sender, 'recipient': recipient, 'payload': payload})
-
-	def wrap(self, msg):
-		pass
-
-
-
-# class SusperSocket(zmq.Socket):
-
-# 	def __init__(self, name, socket_type, bind = False):
-# 		self.type = socket_type
-# 		self = 
-# 		if socket.bind
 
 

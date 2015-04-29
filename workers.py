@@ -94,9 +94,6 @@ class Auth(AgentProcess):
 			sockets = dict(poller.poll(100))
 			if frontend in sockets:
 				package = Package.recv(frontend)
-				# package = frontend.recv_multipart()
-				
-				# package = msg[0], msg[2]
 				self.say('On frontend: {}'.format(package))
 				if self.check_order(package.msg):
 					### Send package to database
@@ -110,7 +107,7 @@ class Auth(AgentProcess):
 					broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_p)
 					broker_package.send(frontend)
 
-					# msg = WorkerMsg(STATUS_READY, trader_id, ORDER_RECEIVED)
+					
 				else:
 					raise Exception('Not implemented')
 					

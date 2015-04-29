@@ -107,7 +107,6 @@ class Package(object):
 			return Package.__from_list__([None, ''] + l)
 		elif socket.TYPE == zmq.ROUTER:
 			# Tested
-			print(l)
 			package = Package.__from_list__([None, ''] + l[2:])
 			package.sender_addr = l[0]
 			return package 
@@ -116,7 +115,15 @@ class Package(object):
 		else:
 			raise Exception('not implemented')
 
-	
+	@staticmethod
+	def stripped(package):
+		"""
+		Return a copy of the package, stripped of any encapsulated packages
+		"""
+		p = copy(package)
+		p.encapsulated = None
+		return p
+		# return Package(msg = package.msg, dest_addr = package.dest_addr)
 
 	
 

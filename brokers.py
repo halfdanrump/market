@@ -1,6 +1,8 @@
 from lib import *
 from workers import REQWorkerThread
+from collections import namedtuple
 
+Job = namedtuple('Job', 'client work')
 
 class BrokerWithQueueing(AgentProcess):
 	def run(self):
@@ -16,6 +18,7 @@ class BrokerWithQueueing(AgentProcess):
 		
 		workers = Queue.Queue()
 		jobs = Queue.Queue()
+		in_progress = {}
 
 		while True:
 			
@@ -23,37 +26,44 @@ class BrokerWithQueueing(AgentProcess):
 
 			# if sockets: self.say('pending jobs: {}, workers in pool: {}'.format(jobs.qsize(), workers.qsize()))
 
-			if backend in sockets:
-
-				request = backend.recv_multipart()
-				# self.say('from worker: {}'.format(request))
-				reply = WorkerMsg.from_mulipart(request, backend.TYPE)
-	
-				if reply.status in [STATUS_READY, JOB_COMPLETE]:
-					workers.put(reply.worker_addr)
-				if reply.client_addr:
-					reply_to_client = ClientMsg(reply.client_msg, reply.client_addr)
-					
-					frontend.send_multipart([reply.client_addr, "", reply.client_msg])
-				
 			if frontend in sockets:
-				request = frontend.recv_multipart()
-				# print('REQUEST')
-				# print(request)
-				# r = ClientMsg.from_multipart(request, frontend.TYPE)
-				# self.say(r.message)
-				# self.say(r.client_addr)
-				# self.say(r.client_msg)
-				# client_addr, workload = r.client_addr, r.client_msg
-				# self.say(request)
-				client_addr, workload = request[0], request[2]
-
-				jobs.put((client_addr, workload))
+				package = Package.recv(frontend)
+				self.say('On frontend: {}'.format(package))
+				jobs.put(Job(client=package.sender_addr, work=package.msg))
 			
+			if backend in sockets:
+				package = Package.recv(backend)
+				self.say('On backend: {}'.format(package))
+
+				if package.msg == MsgCode.JOB_COMPLETE:
+					completed = in_progress.pop(package.sender_addr)
+					if package.encapsulated:
+						self.say(package.encapsulated)
+						encapsulated = package.encapsulated
+						Package(dest_addr = completed.client, msg = encapsulated.msg).send(frontend)
+					workers.put(package.sender_addr)
+				elif package.msg == STATUS_READY:					
+					workers.put(package.sender_addr)
+
+				
+
+				# if p.status in [STATUS_READY, JOB_COMPLETE]:
+				# 	workers.put(reply.worker_addr)
+				# if reply.client_addr:
+				# 	reply_to_client = ClientMsg(reply.client_msg, reply.client_addr)
+				# 	self.say('Sending to frontend: {}'.format([reply.client_addr, "", reply.client_msg]))
+				# 	frontend.send_multipart([reply.client_addr, "", reply.client_msg])
+				
 			if not jobs.empty() and not workers.empty():
 				worker_addr = workers.get()
-				client_addr, workload = jobs.get()
-				backend.send_multipart([worker_addr, "", client_addr, "", workload])
+				job = jobs.get()
+				in_progress[worker_addr] = job
+				package = Package(worker_addr, job.work)
+				self.say('sending on backend: {}'.format(package))
+				package.send(backend)
+				
+				# backend.send_multipart(package.__aslist__())
+				# backend.send_multipart([worker_addr, "", client_addr, "", workload])
 
 			if jobs.qsize() > 10:
 				pass

@@ -30,7 +30,7 @@ class Package(object):
 	"""
 	send/recv tested with: REQ/REP, REQ/ROUTER, DEALER/ROUTER, DEALER/REP
 	"""
-	def __init__(self, dest_addr = None, msg = None, encapsulated = None):
+	def __init__(self, dest_addr = "", msg = "", encapsulated = None):
 		assert isinstance(encapsulated, Package) or encapsulated == None
 		self.dest_addr = dest_addr
 		self.msg = msg
@@ -44,6 +44,7 @@ class Package(object):
 		return self.__package__()[idx]
 
 	def __repr__(self):
+		return str(self.__dict__)
 		return '<Package> {} from: {}, to: {}'.format(self.msg, getattr(self, 'sender_addr', None), getattr(self, 'dest_addr', None))
 
 		if not self[3]:
@@ -87,6 +88,7 @@ class Package(object):
 		elif socket.TYPE == zmq.DEALER:
 			socket.send_multipart(self.__aslist__()[1:])
 		elif socket.TYPE == zmq.REQ or socket.TYPE == zmq.REP:
+			
 			socket.send_multipart(self.__aslist__()[2:])
 		else:
 			raise Exception('not implemented')

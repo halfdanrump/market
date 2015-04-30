@@ -6,32 +6,39 @@ Job = namedtuple('Job', 'client work')
 # Worker = namedtuple('Worker', 'worker_addr expires')
 from Queue import PriorityQueue
 from datetime import datetime, timedelta
-
+from heapdict import heapdict
 
 class BrokerWithQueueing(AgentProcess):
 
-	WORKER_EXPIRY = 3
-	expires = {}
+	WORKER_EXPIRE_SECONDS = 3
+
 	def expire_workers(self):
-		if self.workers.qsize() > 0:
+		if len(self.workers) > 0:
 			now = datetime.now()
-			while not self.worker_expiry.empty():
-				expires, worker = self.worker_expiry.get()
-				if expires < now:
-					self.remove_worker(worker)
-				else:
-					self.worker_expiry.put((expires, worker))
-					break
+			while len(self.workers) > 0 and self.workers.peekitem()[1] < now:
+				self.say('Expiring worker')
+				self.workers.popitem()
+			# if self.workers.qsize() > 0:
+			# 	now = datetime.now()
+			# 	while not self.worker_expiRE_SECONDS.empty():
+			# 		expires, worker = self.worker_expiRE_SECONDS.get()
+			# 		if expires < now:
+			# 			self.remove_worker(worker)
+			# 		else:
+			# 			self.worker_expiRE_SECONDS.put((expires, worker))
+			# 			break
 
 
 	def add_worker(self, worker_addr):
-		expires[]
-		if worker_addr in self.workers:
-			self.say('Updating worker expiry')
-		else:
-			self.say('Adding worker: {}'.format(worker_addr))
-			self.workers.appendleft(worker_addr)
-			self.worker_expiry.put((datetime.now() + timedelta(seconds = self.WORKER_EXPIRY), worker_addr))
+		expires = datetime.now() + timedelta(seconds = self.WORKER_EXPIRE_SECONDS)
+		self.say('Adding worker {}. Expires at {}'.format(worker_addr, expires))
+		self.workers[worker_addr] = expires
+		# if worker_addr in self.workers:
+		# 	self.say('Updating worker expiry')
+		# else:
+		# 	self.say('Adding worker: {}'.format(worker_addr))
+		# 	self.workers.appendleft(worker_addr)
+		# 	self.worker_expiry.put((datetime.now() + timedelta(seconds = self.WORKER_EXPIRY), worker_addr))
 
 	def remove_worker(self, worker_addr):
 		"""
@@ -40,7 +47,7 @@ class BrokerWithQueueing(AgentProcess):
 		"""
 		# try:
 		self.say('Removing worker: {}'.format(worker_addr))
-		self.workers.remove(worker_addr)
+		del self.workers[worker_addr]
 		# except ValueError:
 		# 	pass
 
@@ -57,8 +64,8 @@ class BrokerWithQueueing(AgentProcess):
 		poller.register(backend, zmq.POLLIN)
 		poller.register(frontend, zmq.POLLIN)
 		
-		self.workers = DQueue()
-		self.worker_expiry = PriorityQueue()
+		self.workers = heapdict()
+		# self.worker_expiry = PriorityQueue()
 		self.jobs = DQueue(item_type = Job)
 		# in_progress = {}
 		# worker_last_active = {}
@@ -107,7 +114,7 @@ class BrokerWithQueueing(AgentProcess):
 			self.expire_workers()
 			
 			if sockets: 
-				self.say('pending self.jobs: {}, self.workers in pool: {}'.format(self.jobs.qsize(), self.workers.qsize()))
+				self.say('pending self.jobs: {}, self.workers in pool: {}'.format(self.jobs.qsize(), self.workers.__len__()))
 
 
 		backend.close()

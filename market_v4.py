@@ -44,12 +44,12 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 if __name__ == '__main__':
 
-	# for i in xrange(1): REQTrader('trader', None, 'market_frontend', verbose = True).start()	
+	for i in xrange(1): REQTrader('trader', None, 'market_frontend', verbose = True).start()	
 
-	# market_broker = BrokerWithQueueing('market_gateway', 'market_frontend', 'market_backend')
-	# market_broker.start()
+	market_broker = BrokerWithQueueing('market_gateway', 'market_frontend', 'market_backend')
+	market_broker.start()
 	
-	# for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend').start()
+	for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend').start()
 
 
 	db_broker = BrokerWithQueueing('db_pool', 'db_frontend', 'db_backend', verbose = True)

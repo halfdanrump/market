@@ -42,7 +42,7 @@ class DQueue(deque):
 
 	def put(self, item):
 		if self.item_type:
-			assert isinstance(item, self.item_type), 'Expected item of type {} but got {}'.format(type(self.item_type), type(item))
+			assert isinstance(item, self.item_type), 'Expected item of type {} but got {}'.format(self.item_type.__class__, type(item))
 		self.appendleft(item)
 
 	def get(self):

@@ -3,26 +3,46 @@ from workers import REQWorkerThread
 from collections import namedtuple
 
 Job = namedtuple('Job', 'client work')
-Worker = namedtuple('Worker', 'expiry worker_addr')
+# Worker = namedtuple('Worker', 'worker_addr expires')
 from Queue import PriorityQueue
-
+from datetime import datetime, timedelta
 
 
 class BrokerWithQueueing(AgentProcess):
 
 	WORKER_EXPIRY = 3
-
+	expires = {}
 	def expire_workers(self):
-		expired = filter(lambda worker: worker.expiry > datetime.now(), self.workers)
-		for worker in expired:
-			self.remove_worker(worker)
+		if self.workers.qsize() > 0:
+			now = datetime.now()
+			while not self.worker_expiry.empty():
+				expires, worker = self.worker_expiry.get()
+				if expires < now:
+					self.remove_worker(worker)
+				else:
+					self.worker_expiry.put((expires, worker))
+					break
 
 
-	def remove_worker(self, worker):
-		try:
-			self.workers.remove(worker)
-		except ValueError:
-			pass
+	def add_worker(self, worker_addr):
+		expires[]
+		if worker_addr in self.workers:
+			self.say('Updating worker expiry')
+		else:
+			self.say('Adding worker: {}'.format(worker_addr))
+			self.workers.appendleft(worker_addr)
+			self.worker_expiry.put((datetime.now() + timedelta(seconds = self.WORKER_EXPIRY), worker_addr))
+
+	def remove_worker(self, worker_addr):
+		"""
+		This doesn't remove the worker from the priority queue, but it doesn't matter since 
+		the worker will eventually be removed when it was supposed to expire anyway
+		"""
+		# try:
+		self.say('Removing worker: {}'.format(worker_addr))
+		self.workers.remove(worker_addr)
+		# except ValueError:
+		# 	pass
 
 
 
@@ -38,7 +58,8 @@ class BrokerWithQueueing(AgentProcess):
 		poller.register(frontend, zmq.POLLIN)
 		
 		self.workers = DQueue()
-		self.jobs = DQueue()
+		self.worker_expiry = PriorityQueue()
+		self.jobs = DQueue(item_type = Job)
 		# in_progress = {}
 		# worker_last_active = {}
 		# worker_hearbeats = PriorityQueue()
@@ -62,13 +83,11 @@ class BrokerWithQueueing(AgentProcess):
 					if package.encapsulated:
 						### Forward result from worker to client
 						package.encapsulated.send(frontend)
-					# self.workers.put(worker)
 				
 				if package.msg == MsgCode.DISCONNECT:
-					self.workers.remove(worker)
+					self.remove_worker(worker)
 				else:
-					if not worker in self.workers: 
-						self.workers.put(worker)
+					self.add_worker(worker)
 					# Send PONG to worker
 					Package(dest_addr = worker, msg = MsgCode.PONG).send(backend)
 
@@ -84,7 +103,13 @@ class BrokerWithQueueing(AgentProcess):
 
 			if self.jobs.qsize() > 10:
 				pass
-			if sockets: self.say('pending self.jobs: {}, self.workers in pool: {}'.format(self.jobs.qsize(), self.workers.qsize()))
+
+			self.expire_workers()
+			
+			if sockets: 
+				self.say('pending self.jobs: {}, self.workers in pool: {}'.format(self.jobs.qsize(), self.workers.qsize()))
+
+
 		backend.close()
 		frontend.close()
 

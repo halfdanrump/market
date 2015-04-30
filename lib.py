@@ -37,7 +37,12 @@ class DQueue(deque):
 	"""
 	Just a convenience class to mimic the interface of Queue.Queue
 	"""
+	def __init__(self, item_type = None):
+		self.item_type = item_type
+
 	def put(self, item):
+		if self.item_type:
+			assert isinstance(item, self.item_type), 'Expected item of type {} but got {}'.format(type(self.item_type), type(item))
 		self.appendleft(item)
 
 	def get(self):

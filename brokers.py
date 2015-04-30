@@ -3,11 +3,27 @@ from workers import REQWorkerThread
 from collections import namedtuple
 
 Job = namedtuple('Job', 'client work')
+Worker = namedtuple('Worker', 'expiry worker_addr')
 from Queue import PriorityQueue
 
 
 
 class BrokerWithQueueing(AgentProcess):
+
+	WORKER_EXPIRY = 3
+
+	def expire_workers(self):
+		expired = filter(lambda worker: worker.expiry > datetime.now(), self.workers)
+		for worker in expired:
+			self.remove_worker(worker)
+
+
+	def remove_worker(self, worker):
+		try:
+			self.workers.remove(worker)
+		except ValueError:
+			pass
+
 
 
 	def run(self):
@@ -21,8 +37,8 @@ class BrokerWithQueueing(AgentProcess):
 		poller.register(backend, zmq.POLLIN)
 		poller.register(frontend, zmq.POLLIN)
 		
-		workers = DQueue()
-		jobs = DQueue()
+		self.workers = DQueue()
+		self.jobs = DQueue()
 		# in_progress = {}
 		# worker_last_active = {}
 		# worker_hearbeats = PriorityQueue()
@@ -36,7 +52,7 @@ class BrokerWithQueueing(AgentProcess):
 			if frontend in sockets:
 				package = Package.recv(frontend)
 				self.say('On frontend: {}'.format(package))
-				jobs.put(Job(client=package.sender_addr, work=package.msg))
+				self.jobs.put(Job(client=package.sender_addr, work=package.msg))
 			
 			if backend in sockets:
 				package = Package.recv(backend)
@@ -46,38 +62,29 @@ class BrokerWithQueueing(AgentProcess):
 					if package.encapsulated:
 						### Forward result from worker to client
 						package.encapsulated.send(frontend)
-					# workers.put(worker)
-				if package.msg != MsgCode.DISCONNECT:
-					
-					if not worker in workers: workers.put(worker)
+					# self.workers.put(worker)
+				
+				if package.msg == MsgCode.DISCONNECT:
+					self.workers.remove(worker)
+				else:
+					if not worker in self.workers: 
+						self.workers.put(worker)
 					# Send PONG to worker
 					Package(dest_addr = worker, msg = MsgCode.PONG).send(backend)
 
 
-				# elif 
-
-				# elif package.msg == MsgCode.STATUS_READY:					
-				# 	workers.put(worker)
-				# elif package.msg == MsgCode.PING:
-				# 	pass
-
-
-
-
-
-
-			if not jobs.empty() and not workers.empty():
-				worker_addr = workers.get()
-				job = jobs.get()
+			if not self.jobs.empty() and not self.workers.empty():
+				worker_addr = self.workers.get()
+				job = self.jobs.get()
 				client_p = Package(dest_addr = job.client)
 				package = Package(dest_addr = worker_addr, msg = job.work, encapsulated = client_p)
 				self.say('sending on backend: {}'.format(package))
 				package.send(backend)
 
 
-			if jobs.qsize() > 10:
+			if self.jobs.qsize() > 10:
 				pass
-			if sockets: self.say('pending jobs: {}, workers in pool: {}'.format(jobs.qsize(), workers.qsize()))
+			if sockets: self.say('pending self.jobs: {}, self.workers in pool: {}'.format(self.jobs.qsize(), self.workers.qsize()))
 		backend.close()
 		frontend.close()
 

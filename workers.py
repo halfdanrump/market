@@ -83,6 +83,10 @@ class MJDWorker(AgentProcess):
 		ping = Package(msg = MsgCode.PING)
 		self.send(socket, ping)
 
+	def pong(self, socket):
+		pong = Package(msg = MsgCode.PONG)
+		self.send(socket, pong)
+
 	def reconnect(self):
 		self.say('Connecting to broker...')
 		if hasattr(self, 'frontend'):
@@ -141,6 +145,10 @@ class MJDWorker(AgentProcess):
 			if self.frontend in sockets:
 				package = self.recv(self.frontend)
 				self.say('On frontend: {}'.format(package))
+				if package.msg == MsgCode.PING:
+					### Means that broker is getting impatient, so reply with a PONG
+					self.pong()
+
 				if package.encapsulated:
 					result = self.do_work(package.msg)
 					

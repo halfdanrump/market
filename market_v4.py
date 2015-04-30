@@ -8,7 +8,7 @@ import Queue
 context = zmq.Context()
 from traders import REQTrader
 from brokers import BrokerWithPool, BrokerWithQueueing
-from workers import REQWorker, Auth
+from workers import REQWorker, Auth, MJDWorker
 
 class OrderRouter:
 	"""
@@ -44,20 +44,22 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 if __name__ == '__main__':
 
+	# for i in xrange(1): REQTrader('trader', None, 'market_frontend').start()	
+
 	market_broker = BrokerWithQueueing('market_gateway', 'market_frontend', 'market_backend')
 	market_broker.start()
 	
 	for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend').start()
 
 
-	db_broker = BrokerWithQueueing('db_pool', 'db_frontend', 'db_backend')
-	db_broker.start()
+	# db_broker = BrokerWithQueueing('db_pool', 'db_frontend', 'db_backend')
+	# db_broker.start()
 
-	for i in xrange(1): REQWorker('db_worker', 'db_backend', None).start()
+	# for i in xrange(1): MJDWorker('db_worker', 'db_backend', None).start()
 
 
-	sleep(1)
-	for i in xrange(1): REQTrader('trader', None, 'market_frontend').start()	
+	# sleep(1)
+	
 
 
 

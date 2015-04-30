@@ -4,18 +4,22 @@ from threading import Thread, Event
 import abc
 from redis import Redis
 import zmq
-import Queue
 from time import sleep
 from random import random
 from datetime import datetime
 from collections import namedtuple
 from copy import copy
+from collections import deque
 
 class MsgCode:
 	STATUS_READY = "READY"
 	ORDER_RECEIVED = "ORDER VERIFIED"
+	ORDER_STORED = "ORDER_STORED"
 	JOB_COMPLETE = "JOB COMPLETE"
 	INVALID_ORDER = "INVALID ORDER"
+	PING = "PING"
+	PONG = "PONG"
+	DISCONNECT = "DISCONNECT"
 
 
 
@@ -25,6 +29,29 @@ JOB_COMPLETE = "JOB COMPLETE"
 INVALID_ORDER = "INVALID ORDER"
 
 # Package = namedtuple('Package', 'addr msg encapsulated')
+
+
+
+
+class DQueue(deque):
+	"""
+	Just a convenience class to mimic the interface of Queue.Queue
+	"""
+	def put(self, item):
+		self.appendleft(item)
+
+	def get(self):
+		return self.pop()
+
+	def empty(self):
+		if len(self) == 0:
+			return True
+		else:
+			return False
+
+	def qsize(self):
+		return len(self)
+
 
 class Package(object):
 
@@ -221,7 +248,7 @@ class AddressManager(object):
 		return 'something'
 
 
-zmqSocket = namedtuple('zmqSocket', 'type bind')
+zmqSocket = namedtuple('zmqSocket', 'name type endpoint bind')
 
 
 class AgentProcess(Process):
@@ -252,8 +279,34 @@ class AgentProcess(Process):
 
 	def say(self, msg):
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+
+	def simulate_crash(self):
+		print(x)
  
 
+
+class MDClient(AgentProcess):
+	
+
+	RETRIES = 3
+	TIMEOUT = 2500
+
+	# def __init__(self, **kwargs):
+	# 	super(MDClient, self).__init__(**kwargs)
+
+	# @abc.abstractmethod
+
+
+
+	def reconnect(self):
+		pass
+
+	def send(self, service, package):
+		assert isinstance(package, Package)
+		pass
+
+	def destroy(self):
+		pass
 
 
 """

@@ -19,7 +19,7 @@ class REQTrader(AgentProcess):
 			if backend in sockets:
 				ack = backend.recv_multipart()
 				self.say('From backend: {}'.format(ack))
-			if n_orders < 1:
+			if n_orders < 2:
 				order = 'new order {}'.format(random())
 				# msg = ClientMsg(order, backend.TYPE)
 				self.say(order)
@@ -28,3 +28,4 @@ class REQTrader(AgentProcess):
 				# backend.send_multipart(["", order])
 				n_orders += 1
 				sleep(1)
+				

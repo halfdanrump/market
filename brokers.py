@@ -18,38 +18,20 @@ class BrokerWithQueueing(AgentProcess):
 			while len(self.workers) > 0 and self.workers.peekitem()[1] < now:
 				self.say('Expiring worker')
 				self.workers.popitem()
-			# if self.workers.qsize() > 0:
-			# 	now = datetime.now()
-			# 	while not self.worker_expiRE_SECONDS.empty():
-			# 		expires, worker = self.worker_expiRE_SECONDS.get()
-			# 		if expires < now:
-			# 			self.remove_worker(worker)
-			# 		else:
-			# 			self.worker_expiRE_SECONDS.put((expires, worker))
-			# 			break
-
 
 	def add_worker(self, worker_addr):
 		expires = datetime.now() + timedelta(seconds = self.WORKER_EXPIRE_SECONDS)
 		self.say('Adding worker {}. Expires at {}'.format(worker_addr, expires))
 		self.workers[worker_addr] = expires
-		# if worker_addr in self.workers:
-		# 	self.say('Updating worker expiry')
-		# else:
-		# 	self.say('Adding worker: {}'.format(worker_addr))
-		# 	self.workers.appendleft(worker_addr)
-		# 	self.worker_expiry.put((datetime.now() + timedelta(seconds = self.WORKER_EXPIRY), worker_addr))
 
 	def remove_worker(self, worker_addr):
 		"""
 		This doesn't remove the worker from the priority queue, but it doesn't matter since 
 		the worker will eventually be removed when it was supposed to expire anyway
 		"""
-		# try:
 		self.say('Removing worker: {}'.format(worker_addr))
-		del self.workers[worker_addr]
-		# except ValueError:
-		# 	pass
+		if self.workers.has_key(worker_addr):
+			del self.workers[worker_addr]
 
 
 
@@ -65,11 +47,7 @@ class BrokerWithQueueing(AgentProcess):
 		poller.register(frontend, zmq.POLLIN)
 		
 		self.workers = heapdict()
-		# self.worker_expiry = PriorityQueue()
 		self.jobs = DQueue(item_type = Job)
-		# in_progress = {}
-		# worker_last_active = {}
-		# worker_hearbeats = PriorityQueue()
 
 		while True:
 			

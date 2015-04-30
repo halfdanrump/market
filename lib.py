@@ -261,7 +261,7 @@ class AgentProcess(Process):
 	# 	assert isinstance(frontend, zmqSocket) or None
 	# 	assert isinstance(backend, zmqSocket) or None
 
-	def __init__(self, name, frontend = None, backend = None):
+	def __init__(self, name, frontend = None, backend = None, verbose = False):
 		# assert isinstance(frontend, zmqSocket) or None
 		# assert isinstance(backend, zmqSocket) or None
 		Process.__init__(self)
@@ -269,6 +269,10 @@ class AgentProcess(Process):
 		self.name = "{}_{}".format(id(self), name)
 		self.frontend_name = frontend
 		self.backend_name = backend
+
+		
+
+		if not verbose: self.say = self.shut_up
 		
 	@abc.abstractmethod
 	def run(self):
@@ -277,11 +281,15 @@ class AgentProcess(Process):
 		"""
 		return
 
+	def shut_up(self, msg):
+		pass
+
 	def say(self, msg):
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
 
-	def simulate_crash(self):
-		print(x)
+	def simulate_crash(self, probability = 0.5):
+		if random() < probability: 
+			print(x)
  
 
 

@@ -29,9 +29,9 @@ class BrokerWithQueueing(AgentProcess):
 
 		while True:
 			
-			sockets = dict(poller.poll(1000))	
+			sockets = dict(poller.poll(100))	
 
-			
+			# self.simulate_crash(0.01)
 
 			if frontend in sockets:
 				package = Package.recv(frontend)

@@ -153,7 +153,7 @@ class MJDWorker(AgentProcess):
 					client_p.msg = MsgCode.ORDER_RECEIVED
 					broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_p)
 					self.say('Sending on frontend: {}'.format(broker_package))
-					broker_package.send(frontend)
+					broker_package.send(self.frontend)
 
 
 				# else:
@@ -182,6 +182,9 @@ class DBWorker(MJDWorker):
 
 	def do_work(self, workload):
 		return MsgCode.ORDER_STORED
+
+	def setup(self):
+		pass
 
 class Auth(MJDWorker):
 

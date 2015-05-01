@@ -52,7 +52,7 @@ if __name__ == '__main__':
 	for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend').start()
 
 
-	db_broker = BrokerWithQueueing('db_pool', 'db_frontend', 'db_backend', verbose = True)
+	db_broker = BrokerWithQueueing('db_pool', 'db_frontend', 'db_backend')
 	db_broker.start()
 
 	for i in xrange(1): DBWorker('db_worker', 'db_backend', None, verbose = True).start()

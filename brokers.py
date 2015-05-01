@@ -75,10 +75,9 @@ class BrokerWithQueueing(AgentProcess):
 					self.add_worker(worker)
 					# Send PONG to worker
 					Package(dest_addr = worker, msg = MsgCode.PONG).send(backend)
-
-
-			if not self.jobs.empty() and not self.workers.empty():
-				worker_addr = self.workers.get()
+			
+			if not self.jobs.empty() and len(self.workers) > 0:
+				worker_addr = self.workers.popitem()[0]
 				job = self.jobs.get()
 				client_p = Package(dest_addr = job.client)
 				package = Package(dest_addr = worker_addr, msg = job.work, encapsulated = client_p)

@@ -149,55 +149,8 @@ class Package(object):
 		p = copy(package)
 		p.encapsulated = None
 		return p
-		# return Package(msg = package.msg, dest_addr = package.dest_addr)
-
-	
 
 
-
-
-# class PackageSimple(object):
-# 	def __init__(self, dest_addr, msg):
-# 		self.addr = addr
-# 		self.msg = msg
-# 		self.package = [addr, "", msg]
-
-# 	def append(package):
-# 		self.package.append(package)
-
-# 	def unwrap(self, levels = 1):
-# 		return self.package[3]
-
-# 	def send(self):
-# 		return self.package
-# 		# encapsulated = self.package[3]
-# 		# msg = self.package[:3]
-# 		# while encapsulated:
-# 		# 	msg.extend(encapsulated.package[:3])
-# 		# 	encapsulated = encapsulated.package[3]
-# 		# 	return msg
-	
-# 	@staticmethod
-# 	def from_list(l):
-# 		l = copy(l).reverse()
-# 		for i, (msg, addr) in enumerate(zip(l[::3], l[2::3])):
-# 			print(msg, addr)
-# 			if i == 0:
-# 				package = Package(addr, msg)
-# 			else:
-# 				package = Package(addr, msg, package)
-# 		return package
-
-# 	def __repr__(self):
-# 		return str(self.package)
-
-
-
-# def test():
-
-# 	client_msg = Package(addr=client_addr, msg=db_result)
-# 	auth_msg = Package(addr=auth_addr, msg=status, encapsulated=client_msg)
-# 	trader_msg = 
 
 class AddressManager(object):
 

@@ -29,12 +29,6 @@ class OrderRouter:
 			pass
 
 
-
-
-
-
-
-
 AddressManager.register_endpoint('db_frontend', 'tcp', 'localhost', 5560)
 AddressManager.register_endpoint('db_backend', 'tcp', 'localhost', 5561)
 

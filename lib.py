@@ -42,7 +42,7 @@ class DQueue(deque):
 
 	def put(self, item):
 		if self.item_type:
-			assert isinstance(item, self.item_type), 'Expected item of type {} but got {}'.format(self.item_type.__class__, type(item))
+			assert isinstance(item, self.item_type), 'Expected item of type {} but got {}'.format(self.item_type.__class__im, type(item))
 		self.appendleft(item)
 
 	def get(self):
@@ -78,12 +78,6 @@ class Package(object):
 
 	def __repr__(self):
 		return str(self.__dict__)
-		return '<Package> {} from: {}, to: {}'.format(self.msg, getattr(self, 'sender_addr', None), getattr(self, 'dest_addr', None))
-
-		if not self[3]:
-			return str(self[:3])
-		else:
-			return str(self[:3])[:-1] + ', [...]]'
 
 	def __aslist__(self):
 		encapsulated = self[3]

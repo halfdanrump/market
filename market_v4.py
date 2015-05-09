@@ -6,9 +6,11 @@ import itertools
 from lib import *
 import Queue
 context = zmq.Context()
-from traders import REQTrader
+from traders import Trader
 from brokers import BrokerWithPool, BrokerWithQueueing
 from workers import REQWorker, Auth, DBWorker
+from time import sleep
+import sys
 
 class OrderRouter:
 	"""
@@ -36,20 +38,40 @@ AddressManager.register_endpoint('market_frontend', 'tcp', 'localhost', 5562)
 AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 
-if __name__ == '__main__':
+def test_auth_cluster():
+	for i in xrange(10): Trader('trader', None, 'market_frontend', verbose = True).start()	
+	run_auth_cluster(10)
 
-	for i in xrange(1): REQTrader('trader', None, 'market_frontend', verbose = True).start()	
+	
 
-	market_broker = BrokerWithQueueing('market_gateway', 'market_frontend', 'market_backend')
+def run_auth_cluster(n_workers):
+	market_broker = BrokerWithQueueing('market_gateway', 'market_frontend', 'market_backend', verbose = False)
 	market_broker.start()
 	
-	for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend').start()
+	for i in xrange(n_workers): DBWorker('db_worker', 'market_backend', None, verbose = True).start()
+
+	sleep(1)
+	sys.exit()	
+
+if __name__ == '__main__':
+
+	test_auth_cluster()
+
+	# for i in xrange(1): REQTrader('trader', None, 'market_frontend', verbose = True).start()	
+
+	# market_broker = BrokerWithQueueing('market_gateway', 'market_frontend', 'market_backend', verbose = True)
+	# market_broker.start()
+	
+	
+	# for i in xrange(1): Auth('authenticator', 'market_backend', 'db_frontend', verbose =False).start()
 
 
-	db_broker = BrokerWithQueueing('db_pool', 'db_frontend', 'db_backend')
-	db_broker.start()
 
-	for i in xrange(1): DBWorker('db_worker', 'db_backend', None, verbose = True).start()
+
+	# db_broker = BrokerWithQueueing('db_pool', 'db_frontend', 'db_backend', verbose = False)
+	# db_broker.start()
+
+	# for i in xrange(1): DBWorker('db_worker', 'db_backend', None, verbose = False).start()
 
 
 	# sleep(1)

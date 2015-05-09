@@ -8,8 +8,8 @@ from Queue import PriorityQueue
 from datetime import datetime, timedelta
 from heapdict import heapdict
 
-class BrokerWithQueueing(AgentProcess):
-
+class MJDBroker(AgentProcess):
+	
 	WORKER_EXPIRE_SECONDS = 3
 
 	def expire_workers(self):
@@ -31,11 +31,38 @@ class BrokerWithQueueing(AgentProcess):
 		"""
 		self.say('Removing worker: {}'.format(worker_addr))
 		if self.workers.has_key(worker_addr):
+			del self.workers[worker_addr]	
+
+class BrokerWithQueueing(AgentProcess):
+
+	WORKER_EXPIRE_SECONDS = 3
+
+	def expire_workers(self):
+		if len(self.workers) > 0:
+			now = datetime.now()
+			while len(self.workers) > 0 and self.workers.peekitem()[1] < now:
+				self.say('Expiring worker')
+				self.workers.popitem()
+
+	def add_worker(self, worker_addr):
+		expires = datetime.now() + timedelta(seconds = self.WORKER_EXPIRE_SECONDS)
+		# self.say('Adding worker {}. Expires at {}'.format(worker_addr, expires))
+		self.workers[worker_addr] = expires
+
+	def remove_worker(self, worker_addr):
+		"""
+		This doesn't remove the worker from the priority queue, but it doesn't matter since 
+		the worker will eventually be removed when it was supposed to expire anyway
+		"""
+		self.say('Removing worker: {}'.format(worker_addr))
+		if self.workers.has_key(worker_addr):
 			del self.workers[worker_addr]
 
 
 
 	def run(self):
+		start_time = datetime.now()
+
 		frontend = self.context.socket(zmq.ROUTER)
 		frontend.bind(AddressManager.get_bind_address(self.frontend_name))
 		frontend.identity = AddressManager.get_bind_address(self.frontend_name)
@@ -48,17 +75,26 @@ class BrokerWithQueueing(AgentProcess):
 		
 		self.workers = heapdict()
 		self.jobs = DQueue(item_type = Job)
-
-		while True:
+		n_jobs_received = 0
+		while n_jobs_received <= 1000000:
 			
-			sockets = dict(poller.poll(100))	
+			sockets = dict(poller.poll(10))	
 
 			# self.simulate_crash(0.01)
-
+			# if self.jobs.qsize() % 1000 == 0: 
+			# print(self.jobs.qsize())
+			# print(n_jobs_received)
 			if frontend in sockets:
-				package = Package.recv(frontend)
-				self.say('On frontend: {}'.format(package))
-				self.jobs.put(Job(client=package.sender_addr, work=package.msg))
+				# package = Package.recv(frontend)
+				# frontend.recv_multipart()
+				n_jobs_received += 1
+				# self.say(package)
+				# job = Job(client=package.sender_addr, work=package.msg)
+				# self.say('On frontend: {}'.format(package))
+				# print('Putting job: {}'.format(job))
+				# print(frontend.recv_multipart())
+				# self.jobs.put(job)
+				
 			
 			if backend in sockets:
 				package = Package.recv(backend)
@@ -67,6 +103,7 @@ class BrokerWithQueueing(AgentProcess):
 				if package.msg == MsgCode.JOB_COMPLETE:
 					if package.encapsulated:
 						### Forward result from worker to client
+						self.say('Sending on frontend: {}'.format(package.encapsulated))
 						package.encapsulated.send(frontend)
 				
 				if package.msg == MsgCode.DISCONNECT:
@@ -77,6 +114,7 @@ class BrokerWithQueueing(AgentProcess):
 					Package(dest_addr = worker, msg = MsgCode.PONG).send(backend)
 			
 			if not self.jobs.empty() and len(self.workers) > 0:
+				
 				worker_addr = self.workers.popitem()[0]
 				job = self.jobs.get()
 				client_p = Package(dest_addr = job.client)
@@ -88,11 +126,15 @@ class BrokerWithQueueing(AgentProcess):
 			if self.jobs.qsize() > 10:
 				pass
 
+
+
 			self.expire_workers()
 			
-			if sockets: 
-				self.say('pending self.jobs: {}, self.workers in pool: {}'.format(self.jobs.qsize(), self.workers.__len__()))
-
+			# if sockets: 
+			# 	self.say('pending jobs: {}, workers in pool: {}'.format(self.jobs.qsize(), self.workers.__len__()))
+		end_time = datetime.now()
+		td = end_time - start_time
+		print('Time for 1000000 orders; {}'.format(td.total_seconds()))
 
 		backend.close()
 		frontend.close()
@@ -101,6 +143,17 @@ class BrokerWithQueueing(AgentProcess):
 
 # 	a
 
+# class OrderRouter(AgentProcess):
+# 	self.
+
+
+class AuctionPool(AgentProcess):
+
+	def register_auction(self):
+		pass
+
+	def run(self):
+		self.frontend = sel
 
 
 class BrokerWithPool(BrokerWithQueueing):

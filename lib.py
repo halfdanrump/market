@@ -32,7 +32,6 @@ INVALID_ORDER = "INVALID ORDER"
 
 
 
-
 class DQueue(deque):
 	"""
 	Just a convenience class to mimic the interface of Queue.Queue
@@ -202,29 +201,16 @@ class AddressManager(object):
 
 zmqSocket = namedtuple('zmqSocket', 'name type endpoint bind')
 
-
-class AgentProcess(Process):
-
+class BaseAgent(object):
 	__metaclass__ = abc.ABCMeta
 
-	# frontend = abc.abstractproperty()
-	# @abc.abstractproperty
-	# def sockets(frontend, backend): 
-	# 	assert isinstance(frontend, zmqSocket) or None
-	# 	assert isinstance(backend, zmqSocket) or None
-
 	def __init__(self, name, frontend = None, backend = None, verbose = False):
-		# assert isinstance(frontend, zmqSocket) or None
-		# assert isinstance(backend, zmqSocket) or None
 		Process.__init__(self)
+		if not verbose: self.say = lambda x: None
 		self.context = zmq.Context()
 		self.name = "{}_{}".format(id(self), name)
 		self.frontend_name = frontend
 		self.backend_name = backend
-
-		
-
-		if not verbose: self.say = self.shut_up
 		
 	@abc.abstractmethod
 	def run(self):
@@ -233,10 +219,62 @@ class AgentProcess(Process):
 		"""
 		return
 
-	def shut_up(self, msg):
-		pass
+	def say(self, msg):
+		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+
+	def simulate_crash(self, probability = 0.5):
+		if random() < probability: 
+			print(x)
+
+
+class AgentProcess(Process):
+
+	__metaclass__ = abc.ABCMeta
+
+	def __init__(self, name, frontend = None, backend = None, verbose = False):
+		Process.__init__(self)
+		if not verbose: self.say = lambda x: None
+		self.context = zmq.Context()
+		self.name = "{}_{}".format(id(self), name)
+		self.frontend_name = frontend
+		self.backend_name = backend
+		
+	@abc.abstractmethod
+	def run(self):
+		"""
+		Main routine
+		"""
+		return
+
+	# @abc.abstractmethod
+	# def setup(self):
+	# 	"""
+
+	# 	"""
+	# 	return
+
+	# @abc.abstractmethod
+	# def iteration(self):
+	# 	return
+
+	def loop(self):
+		while True:
+			self.iteration()
+
+	# def log_package(self, package):
+	# 	ass
+	# 	print(type(package))
+	# 	if isinstance(package, Package):
+	# 		print('HEJ MED DIG')
+	# 	else:
+	# 		print('LORT')
 
 	def say(self, msg):
+		# print(type(msg))
+		# print(msg)
+		# if isinstance(msg, Package):
+		# 	print('GOT PACKAGE')
+		# else:
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
 
 	def simulate_crash(self, probability = 0.5):
@@ -305,6 +343,9 @@ class AgentThread(Thread):
 
 	def register_at_DNS(self):
 		pass
+
+	
+
 
 	def say(self, msg):
 		# pass

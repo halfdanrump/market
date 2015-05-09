@@ -54,6 +54,7 @@ class REQWorker(AgentProcess):
 				client_p = package.encapsulated
 				client_p.msg = result
 				broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
+				self.say('Sending on frontend: {}'.format(broker_p))
 				broker_p.send(frontend)
 				
 		frontend.close()
@@ -68,16 +69,6 @@ class MJDWorker(AgentProcess):
 
 	BROKER_TIMEOUT = 1;
 	BROKER_ALIVENESS = 3 # Number of timeouts before the worker tries to reconnect to the broker
-
-	# sockets = {}
-	
-	# def __init__(self, *sockets):
-	# 	for socket in sockets: 
-	# 		assert isinstance(socket, zmqSocket)
-	# 		if sockets.has_key(socket.name):
-	# 			raise Exception('Socket name must be unique')
-	# 		else:
-	# 			sockets.update({socket.name:socket})
 
 	def ping(self, socket):
 		ping = Package(msg = MsgCode.PING)
@@ -101,7 +92,7 @@ class MJDWorker(AgentProcess):
 
 	def update_aliveness(self):
 		self.broker_aliveness -= 1
-		self.say('aliveness: {}'.format(self.broker_aliveness))
+		# self.say('aliveness: {}'.format(self.broker_aliveness))
 		if self.broker_aliveness == 0:
 			self.broker_aliveness = self.BROKER_ALIVENESS
 			self.reconnect()
@@ -132,36 +123,35 @@ class MJDWorker(AgentProcess):
 	@abc.abstractmethod
 	def do_work(self, workload):
 		return
-		# print('DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!DID WORK!')
-		# return 'some work'
 
-	# def reply_frontend(self):
 
 	def loop(self):
 		while True:
 			# self.say('Sockets in poller: {}'.format(self.poller.sockets))
 			# self.say('Frontend socket: {}'.format(self.frontend))
-			sockets = dict(self.poller.poll(100))
+			sockets = dict(self.poller.poll())
 			if self.frontend in sockets:
 				package = self.recv(self.frontend)
-				self.say('On frontend: {}'.format(package))
 				if package.msg == MsgCode.PING:
 					### Means that broker is getting impatient, so reply with a PONG
 					self.pong()
-
+				# if not package.msg == MsgCode.PONG:
+				self.say('On frontend: {}'.format(package))
+					# pass
 				if package.encapsulated:
 					result = self.do_work(package.msg)
-					
+										
 					client_p = package.encapsulated
 					client_p.msg = result
-					broker_p = Package(msg = result, encapsulated = client_p)
+					broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
+					self.say('Sending on frontend: {}'.format(broker_p))
 					self.send(self.frontend, broker_p)
 				
-					client_p = package.encapsulated
-					client_p.msg = MsgCode.ORDER_RECEIVED
-					broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_p)
-					self.say('Sending on frontend: {}'.format(broker_package))
-					broker_package.send(self.frontend)
+					# client_p = package.encapsulated
+					# client_p.msg = MsgCode.ORDER_RECEIVED
+					# broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_p)
+					# self.say('Sending on frontend: {}'.format(broker_package))
+					# broker_package.send(self.frontend)
 
 
 				# else:
@@ -211,7 +201,7 @@ class Auth(MJDWorker):
 
 	def do_work(self, order):
 		if self.authenticate_order(order):
-			Package(msg = order).send(self.backend)
+			# Package(msg = order).send(self.backend)
 			# package.send(backend)
 			return MsgCode.ORDER_RECEIVED
 		else:

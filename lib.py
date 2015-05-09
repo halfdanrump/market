@@ -212,6 +212,14 @@ class BaseAgent(object):
 		self.frontend_name = frontend
 		self.backend_name = backend
 		
+	handlers = {}
+
+	def __iterate_forever__(self):
+		while True:
+			self.iteration()
+
+
+
 	@abc.abstractmethod
 	def run(self):
 		"""
@@ -227,6 +235,30 @@ class BaseAgent(object):
 			print(x)
 
 
+
+"""
+What do I want to test? It depends. I want to test how many messages per second the broker can process. 
+So I make a process which sends a start message to the broker and a stop message
+When the broker receives a stop message it exits the main loop
+I want to add a socket to the broker that's used for stop/start messages. 
+This socket should only be there when I'm running the profiler
+The socket should only be registered in the poller when I'm profiling
+
+It can be assumed that all agents are running on the same localhost
+
+Implementation ways:
+1) Subclass broker with a TestedBroker. 
+2) wrap/decorate the broker
+	- before_run: create socket and listen on the socket until it receives "start" from the profiler
+	- register socket in broker poller and 
+3) make a profiler class 
+
+"""
+
+
+
+
+
 class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
@@ -239,6 +271,8 @@ class AgentProcess(Process):
 		self.frontend_name = frontend
 		self.backend_name = backend
 		
+	
+
 	@abc.abstractmethod
 	def run(self):
 		"""

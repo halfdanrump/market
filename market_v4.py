@@ -38,6 +38,9 @@ AddressManager.register_endpoint('market_frontend', 'tcp', 'localhost', 5562)
 AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 
+
+
+
 def test_auth_cluster():
 	for i in xrange(10): Trader('trader', None, 'market_frontend', verbose = True).start()	
 	run_auth_cluster(10)

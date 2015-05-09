@@ -2,6 +2,9 @@ from lib import *
 import itertools
 import atexit
 
+
+
+
 class Trader(AgentProcess):
 	"""
 	no frontend
@@ -12,7 +15,7 @@ class Trader(AgentProcess):
 
 	def run(self):
 		sleep(0.1)
-		n_orders = 10000
+		n_orders = 2 
 
 		backend = self.context.socket(zmq.DEALER)
 		backend.connect(AddressManager.get_connect_address(self.backend_name))

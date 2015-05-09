@@ -202,30 +202,10 @@ class AddressManager(object):
 zmqSocket = namedtuple('zmqSocket', 'name type endpoint bind')
 
 class BaseAgent(object):
-	__metaclass__ = abc.ABCMeta
-
-	def __init__(self, name, frontend = None, backend = None, verbose = False):
-		Process.__init__(self)
-		if not verbose: self.say = lambda x: None
-		self.context = zmq.Context()
-		self.name = "{}_{}".format(id(self), name)
-		self.frontend_name = frontend
-		self.backend_name = backend
-		
-	handlers = {}
-
-	def __iterate_forever__(self):
+	
+	def loop(self):
 		while True:
 			self.iteration()
-
-
-
-	@abc.abstractmethod
-	def run(self):
-		"""
-		Main routine
-		"""
-		return
 
 	def say(self, msg):
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
@@ -233,6 +213,20 @@ class BaseAgent(object):
 	def simulate_crash(self, probability = 0.5):
 		if random() < probability: 
 			print(x)
+
+	def attach_handler(self, socket, handler):
+		if not hasattr(self, 'handlers'):
+			self.handlers = {socket : handler}
+		else:
+			if socket in self.handlers.keys() or handler in self.handlers.items():
+				raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
+			else:
+				self.say('Registering handler {} for socket {}'.format(handler, socket))
+				self.handlers.update({socket : handler})
+
+
+
+
 
 
 
@@ -259,7 +253,7 @@ Implementation ways:
 
 
 
-class AgentProcess(Process):
+class AgentProcess(Process, BaseAgent):
 
 	__metaclass__ = abc.ABCMeta
 
@@ -280,40 +274,26 @@ class AgentProcess(Process):
 		"""
 		return
 
-	# @abc.abstractmethod
-	# def setup(self):
-	# 	"""
+	# def loop(self):
+	# 	while True:
+	# 		self.iteration()
 
-	# 	"""
-	# 	return
+	# def say(self, msg):
+	# 	print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
 
-	# @abc.abstractmethod
-	# def iteration(self):
-	# 	return
+	# def simulate_crash(self, probability = 0.5):
+	# 	if random() < probability: 
+	# 		print(x)
 
-	def loop(self):
-		while True:
-			self.iteration()
-
-	# def log_package(self, package):
-	# 	ass
-	# 	print(type(package))
-	# 	if isinstance(package, Package):
-	# 		print('HEJ MED DIG')
+	# def attach_handler(self, socket, handler):
+	# 	if not hasattr(self, 'handlers'):
+	# 		self.handlers = {socket : handler}
 	# 	else:
-	# 		print('LORT')
-
-	def say(self, msg):
-		# print(type(msg))
-		# print(msg)
-		# if isinstance(msg, Package):
-		# 	print('GOT PACKAGE')
-		# else:
-		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
-
-	def simulate_crash(self, probability = 0.5):
-		if random() < probability: 
-			print(x)
+	# 		if socket in self.handlers.keys() or handler in self.handlers.items():
+	# 			raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
+	# 		else:
+	# 			self.say('Registering handler {} for socket {}'.format(handler, socket))
+	# 			self.handlers.update({socket : handler})
  
 
 
@@ -356,7 +336,7 @@ class MDClient(AgentProcess):
 
 
 
-class AgentThread(Thread):
+class AgentThread(Thread, BaseAgent):
 
 	__metaclass__ = abc.ABCMeta
 
@@ -374,18 +354,6 @@ class AgentThread(Thread):
 		Main routine
 		"""
 		return
-
-	def register_at_DNS(self):
-		pass
-
-	
-
-
-	def say(self, msg):
-		# pass
-		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
-
-
 
 class Auction(AgentProcess):
 

@@ -20,15 +20,7 @@ class Channel:
 
 class BrokerWithHandlers(AgentProcess):
 
-	def attach_handler(self, socket, handler):
-		if not hasattr(self, 'handlers'):
-			self.handlers = bidict({socket : handler})
-		else:
-			if socket in self.handlers.keys() or handler in self.handlers.items():
-				raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
-			else:
-				self.say('Registering handler {} for socket {}'.format(handler, socket))
-				self.handlers.update({socket : handler})
+	
 
 	WORKER_EXPIRE_SECONDS = 3
 

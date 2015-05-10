@@ -110,9 +110,9 @@ class PingPongBroker(AgentProcess):
 if __name__ == '__main__':
 	Trader('trader', None, 'market_frontend', verbose = True).start()	
 
-	market_broker = PingPongBroker('market_gateway', 'market_frontend', 'market_backend', verbose = True)
+	market_broker = PingPongBrokerNew('market_gateway', 'market_frontend', 'market_backend', verbose = True)
 	market_broker.start()
-	# Auth('authenticator', 'market_backend', 'db_frontend', verbose = True).start()
+	Auth('authenticator', 'market_backend', 'db_frontend', verbose = True).start()
 	# broker = BrokerWithHandlers
 
 	# a = AgentWithHandlers()

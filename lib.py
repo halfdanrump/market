@@ -259,20 +259,22 @@ Implementation ways:
 """
 
 
-
+Socket = namedtuple('Socket', 'socket name bind')
 
 
 class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
 
-	def __init__(self, name, frontend = None, backend = None, verbose = False):
+	def __init__(self, name, frontend = None, backend = None, verbose = False, n_iterations = -1):
 		Process.__init__(self)
 		if not verbose: self.say = lambda x: None
 		self.context = zmq.Context()
 		self.name = "{}_{}".format(id(self), name)
 		self.frontend_name = frontend
 		self.backend_name = backend
+		self.sockets = {}
+		self.handlers = {}
 		
 	@abc.abstractmethod
 	def run(self):
@@ -281,9 +283,6 @@ class AgentProcess(Process):
 		"""
 		return
 
-	@abc.abstractmethod
-	def iteration(self):
-		return
 
 	@abc.abstractmethod
 	def setup(self):
@@ -296,15 +295,57 @@ class AgentProcess(Process):
 		if random() < probability: 
 			print(x)
 
-	def attach_handler(self, socket, handler):
-		if not hasattr(self, 'handlers'):
-			self.handlers = {socket : handler}
+	def attach_handler(self, socket_name, handler):
+		if socket_name in self.handlers.keys() or handler in self.handlers.items():
+			raise Exception('Handler {} already registered for socket {}'.format(handler, socket_name))
 		else:
-			if socket in self.handlers.keys() or handler in self.handlers.items():
-				raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
-			else:
-				self.say('Registering handler {} for socket {}'.format(handler, socket))
-				self.handlers.update({socket : handler})
+			# self.say('Registering handler {} for socket_name {}'.format(handler, socket_name))
+			self.handlers.update({socket_name : handler})
+
+	def new_socket(self, socket_name, socket_role, socket_type, bind = False, handler = None):
+		"""
+		:param socket_role: frontend, backend, etc.
+		"""
+		# assert isinstance(socket, zmq.Socket)
+		assert isinstance(socket_name, str)
+		assert isinstance(bind, bool)
+		socket = self.context.socket(socket_type)
+		self.sockets[socket_name] = socket
+		setattr(self, socket_role, socket)
+		if bind:
+			address = AddressManager.get_bind_address(socket_name)
+			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(socket_name, socket_role, socket_type, address))
+			socket.bind(address)
+		else:
+			address = AddressManager.get_bind_address(socket_name)
+			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(socket_name, socket_role, socket_type, address))
+			socket.connect(address)
+
+		if handler:
+			self.attach_handler(socket, handler)
+			# if socket in self.handlers.keys() or handler in self.handlers.items():
+			# 	raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
+			# else:
+			# 	self.say('Registering handler {} for socket {}'.format(handler, socket))
+			# 	self.handlers.update({socket : handler})			
+		
+	def close_sockets(self):
+		for socket_name, socket in self.sockets.items():
+			socket.close()
+
+
+
+		# self.sockets[name] = Socket(socket = socket, name = name, bind = bind)
+
+	# self.new_socket(self.frontend_name, zmq.ROUTER, bind = True)
+
+	# self.frontend = self.context.socket(zmq.ROUTER)
+	# self.frontend.bind(AddressManager.get_bind_address(self.frontend_name))
+	# self.attach_handler(self.frontend, self.handle_frontend)
+
+	def connect_socket(self, name):
+		self.socket[name].socket
+
 
 	def handle_sockets(self):
 		for socket in dict(self.poller.poll(10)):
@@ -322,6 +363,101 @@ class AgentProcess(Process):
 			socket.close()
 		# self.backend.close()
 		# self.frontend.close()
+
+import zmq
+from heapdict import heapdict
+from brokers import Job
+from traders import Trader
+from datetime import datetime, timedelta
+from bidict import bidict
+import abc
+
+class PingPongBrokerNew(AgentProcess):
+	WORKER_EXPIRE_SECONDS = 3
+
+	def setup(self):
+		self.new_socket(self.frontend_name, 'frontend', zmq.ROUTER, bind = True, handler = self.handle_frontend)
+		self.new_socket(self.backend_name, 'backend', zmq.ROUTER, bind = True, handler = self.handle_backend)
+		
+		self.poller = zmq.Poller()
+		for socket_name, socket in self.sockets.items():
+			self.poller.register(socket, zmq.POLLIN)
+		
+		self.workers = heapdict()
+		self.jobs = DQueue(item_type = Job)
+
+		self.jobs_received = 0
+
+	def expire_workers(self):
+		if len(self.workers) > 0:
+			now = datetime.now()
+			while len(self.workers) > 0 and self.workers.peekitem()[1] < now:
+				self.say('Expiring worker')
+				self.workers.popitem()
+
+	def add_worker(self, worker_addr):
+		expires = datetime.now() + timedelta(seconds = self.WORKER_EXPIRE_SECONDS)
+		self.workers[worker_addr] = expires
+
+	def remove_worker(self, worker_addr):
+		"""
+		This doesn't remove the worker from the priority queue, but it doesn't matter since 
+		the worker will eventually be removed when it was supposed to expire anyway
+		"""
+		self.say('Removing worker: {}'.format(worker_addr))
+		if self.workers.has_key(worker_addr):
+			del self.workers[worker_addr]
+
+	
+	def send_job(self):
+		worker_addr = self.workers.popitem()[0]
+		job = self.jobs.get()
+		client_p = Package(dest_addr = job.client)
+		package = Package(dest_addr = worker_addr, msg = job.work, encapsulated = client_p)
+		self.say('sending on backend: {}'.format(package))
+		package.send(self.backend)
+
+
+	def handle_frontend(self):
+		package = Package.recv(self.frontend)
+		self.say('On frontend: {}'.format(package))
+		job = Job(client=package.sender_addr, work=package.msg)
+		self.jobs_received += 1
+		self.jobs.put(job)
+
+	def handle_backend(self):
+		package = Package.recv(self.backend)
+		self.say('On backend: {}'.format(package))
+		worker = package.sender_addr
+		if package.msg == MsgCode.DISCONNECT:
+			self.remove_worker(worker)
+		else:
+			self.add_worker(worker)
+			# Send PONG to worker
+			Package(dest_addr = worker, msg = MsgCode.PONG).send(self.backend)
+		
+		if package.msg == MsgCode.JOB_COMPLETE:
+			if package.encapsulated:
+				### Forward result from worker to client
+				self.say('Sending on frontend: {}'.format(package.encapsulated))
+				package.encapsulated.send(self.frontend)
+
+	
+	
+	def iteration(self):
+		self.handle_sockets()
+		if not self.jobs.empty() and len(self.workers) > 0:
+			self.send_job()
+		self.expire_workers()
+
+	def run(self):
+		self.setup()
+		while True:
+			self.handle_sockets()
+			self.iteration()	
+		
+		self.backend.close()
+		self.frontend.close()
 
 
 

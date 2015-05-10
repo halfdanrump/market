@@ -39,7 +39,7 @@ class Trader(AgentProcess):
 		self.backend.connect(AddressManager.get_connect_address(self.backend_name))
 		# self.attach_handler(self.backend, self.handle_backend)
 		self.poller = zmq.Poller()
-		self.poller.register(backend, zmq.POLLIN)
+		self.poller.register(self.backend, zmq.POLLIN)
 		self.say('ready')
 		self.n_replies = 0
 
@@ -52,5 +52,6 @@ class Trader(AgentProcess):
 		ack = self.backend.recv_multipart()
 		self.n_replies += 1
 		self.say('From backend: {}'.format(ack))
+		sleep(1)
 
 		# self.handle_sockets()

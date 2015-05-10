@@ -1,35 +1,35 @@
 from lib import *
 from random import randint
-class REQWorkerThread(AgentThread):
+# class REQWorkerThread(AgentThread):
 		
-	def __init__(self, context, name, alive_event):
-		super(REQWorkerThread, self).__init__(context, name, alive_event)
-		self.setup()
+# 	def __init__(self, context, name, alive_event):
+# 		super(REQWorkerThread, self).__init__(context, name, alive_event)
+# 		self.setup()
 
-	def do_work(self):
-		sleep(1)
-		return sum(range(randint(0, 1000)))
+# 	def do_work(self):
+# 		sleep(1)
+# 		return sum(range(randint(0, 1000)))
 
-	def setup(self):
-		self.frontend = self.context.socket(zmq.REQ)
-		self.frontend.connect(AddressManager.get_connect_address('db_backend'))
-		self.poller = zmq.Poller()
+# 	def setup(self):
+# 		self.frontend = self.context.socket(zmq.REQ)
+# 		self.frontend.connect(AddressManager.get_connect_address('db_backend'))
+# 		self.poller = zmq.Poller()
 		
-	def run(self):
-		self.poller.register(self.frontend, zmq.POLLIN)
-		self.frontend.send_multipart(WorkerMsg(STATUS_READY).message)	
-		while self.alive_event.isSet():
-			sockets = dict(self.poller.poll(100))
-			if self.frontend in sockets:
-				request = self.frontend.recv_multipart()
-				self.say('On frontend: {}'.format(request))
-				client_id, empty, workload = request[0:3]
-				if workload == 'quit': 
-					break
-				result = self.do_work()	
-				self.frontend.send_multipart(WorkerMsg(STATUS_READY, client_id, str(result)).message)
+# 	def run(self):
+# 		self.poller.register(self.frontend, zmq.POLLIN)
+# 		self.frontend.send_multipart(WorkerMsg(STATUS_READY).message)	
+# 		while self.alive_event.isSet():
+# 			sockets = dict(self.poller.poll(100))
+# 			if self.frontend in sockets:
+# 				request = self.frontend.recv_multipart()
+# 				self.say('On frontend: {}'.format(request))
+# 				client_id, empty, workload = request[0:3]
+# 				if workload == 'quit': 
+# 					break
+# 				result = self.do_work()	
+# 				self.frontend.send_multipart(WorkerMsg(STATUS_READY, client_id, str(result)).message)
 
-		self.frontend.close()
+# 		self.frontend.close()
 
 
 class REQWorker(AgentProcess):
@@ -127,17 +127,13 @@ class MJDWorker(AgentProcess):
 
 	def loop(self):
 		while True:
-			# self.say('Sockets in poller: {}'.format(self.poller.sockets))
-			# self.say('Frontend socket: {}'.format(self.frontend))
 			sockets = dict(self.poller.poll())
 			if self.frontend in sockets:
 				package = self.recv(self.frontend)
 				if package.msg == MsgCode.PING:
 					### Means that broker is getting impatient, so reply with a PONG
 					self.pong()
-				# if not package.msg == MsgCode.PONG:
 				self.say('On frontend: {}'.format(package))
-					# pass
 				if package.encapsulated:
 					result = self.do_work(package.msg)
 										
@@ -146,21 +142,6 @@ class MJDWorker(AgentProcess):
 					broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
 					self.say('Sending on frontend: {}'.format(broker_p))
 					self.send(self.frontend, broker_p)
-				
-					# client_p = package.encapsulated
-					# client_p.msg = MsgCode.ORDER_RECEIVED
-					# broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_p)
-					# self.say('Sending on frontend: {}'.format(broker_package))
-					# broker_package.send(self.frontend)
-
-
-				# else:
-				# 	### This means that the worker simply received a pong
-				# 	if package.msg == MsgCode.PONG:
-				# 		self.broker_aliveness = self.BROKER_ALIVENESS
-
-
-				# broker_p.send(frontend)
 				
 		self.frontend.close()
 

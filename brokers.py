@@ -1,10 +1,8 @@
 from lib import *
-from workers import REQWorkerThread
 from collections import namedtuple
 
 Job = namedtuple('Job', 'client work')
 # Worker = namedtuple('Worker', 'worker_addr expires')
-from Queue import PriorityQueue
 from datetime import datetime, timedelta
 from heapdict import heapdict
 

@@ -199,30 +199,39 @@ class AddressManager(object):
 		return 'something'
 
 
-zmqSocket = namedtuple('zmqSocket', 'name type endpoint bind')
 
-class BaseAgent(object):
+# class BaseAgent(object):
 	
-	def loop(self):
-		while True:
-			self.iteration()
 
-	def say(self, msg):
-		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+# 	__metaclass__ = abc.ABCMeta
+# 	def loop(self):
+# 		while True:
+# 			self.iteration()
 
-	def simulate_crash(self, probability = 0.5):
-		if random() < probability: 
-			print(x)
+# 	@abc.abstractmethod
+# 	def iteration(self):
+# 		return
 
-	def attach_handler(self, socket, handler):
-		if not hasattr(self, 'handlers'):
-			self.handlers = {socket : handler}
-		else:
-			if socket in self.handlers.keys() or handler in self.handlers.items():
-				raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
-			else:
-				self.say('Registering handler {} for socket {}'.format(handler, socket))
-				self.handlers.update({socket : handler})
+# 	@abc.abstractmethod
+# 	def setup(self):
+# 		return
+	
+# 	def say(self, msg):
+# 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+
+# 	def simulate_crash(self, probability = 0.5):
+# 		if random() < probability: 
+# 			print(x)
+
+# 	def attach_handler(self, socket, handler):
+# 		if not hasattr(self, 'handlers'):
+# 			self.handlers = {socket : handler}
+# 		else:
+# 			if socket in self.handlers.keys() or handler in self.handlers.items():
+# 				raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
+# 			else:
+# 				self.say('Registering handler {} for socket {}'.format(handler, socket))
+# 				self.handlers.update({socket : handler})
 
 
 
@@ -253,7 +262,7 @@ Implementation ways:
 
 
 
-class AgentProcess(Process, BaseAgent):
+class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
 
@@ -265,8 +274,6 @@ class AgentProcess(Process, BaseAgent):
 		self.frontend_name = frontend
 		self.backend_name = backend
 		
-	
-
 	@abc.abstractmethod
 	def run(self):
 		"""
@@ -274,86 +281,68 @@ class AgentProcess(Process, BaseAgent):
 		"""
 		return
 
-	# def loop(self):
-	# 	while True:
-	# 		self.iteration()
-
-	# def say(self, msg):
-	# 	print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
-
-	# def simulate_crash(self, probability = 0.5):
-	# 	if random() < probability: 
-	# 		print(x)
-
-	# def attach_handler(self, socket, handler):
-	# 	if not hasattr(self, 'handlers'):
-	# 		self.handlers = {socket : handler}
-	# 	else:
-	# 		if socket in self.handlers.keys() or handler in self.handlers.items():
-	# 			raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
-	# 		else:
-	# 			self.say('Registering handler {} for socket {}'.format(handler, socket))
-	# 			self.handlers.update({socket : handler})
- 
-
-
-class MDClient(AgentProcess):
-	
-
-	RETRIES = 3
-	TIMEOUT = 2500
-
-	# def __init__(self, **kwargs):
-	# 	super(MDClient, self).__init__(**kwargs)
-
-	# @abc.abstractmethod
-
-
-
-	def reconnect(self):
-		pass
-
-	def send(self, service, package):
-		assert isinstance(package, Package)
-		pass
-
-	def destroy(self):
-		pass
-
-
-"""
- from db_worker to trader:
- [status_msg/order_receipt, "", client_addr]
- SHOULD BE
- [status_msg, "", client_addr, "", order_receipt]
-
-
-
- from trader to worker:
- ["order"]
-
-"""
-
-
-
-class AgentThread(Thread, BaseAgent):
-
-	__metaclass__ = abc.ABCMeta
-
-	def __init__(self, context, name, alive_event):
-		assert isinstance(context, zmq.Context)
-		Thread.__init__(self)
-		self.context = context
-		self.name = "{}_{}".format(id(self), name)
-		self.alive_event = alive_event
-		# self.start()
+	@abc.abstractmethod
+	def iteration(self):
+		return
 
 	@abc.abstractmethod
-	def run(self):
-		"""
-		Main routine
-		"""
+	def setup(self):
 		return
+	
+	def say(self, msg):
+		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+
+	def simulate_crash(self, probability = 0.5):
+		if random() < probability: 
+			print(x)
+
+	def attach_handler(self, socket, handler):
+		if not hasattr(self, 'handlers'):
+			self.handlers = {socket : handler}
+		else:
+			if socket in self.handlers.keys() or handler in self.handlers.items():
+				raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
+			else:
+				self.say('Registering handler {} for socket {}'.format(handler, socket))
+				self.handlers.update({socket : handler})
+
+	def handle_sockets(self):
+		for socket in dict(self.poller.poll(10)):
+			self.handlers[socket]()
+
+	
+
+	def run(self):
+		self.setup()
+		while True:
+			self.handle_sockets()
+			self.iteration()	
+
+		for socket in self.sockets():
+			socket.close()
+		# self.backend.close()
+		# self.frontend.close()
+
+
+
+# class AgentThread(Thread, BaseAgent):
+
+# 	__metaclass__ = abc.ABCMeta
+
+# 	def __init__(self, context, name, alive_event):
+# 		assert isinstance(context, zmq.Context)
+# 		Thread.__init__(self)
+# 		self.context = context
+# 		self.name = "{}_{}".format(id(self), name)
+# 		self.alive_event = alive_event
+# 		# self.start()
+
+# 	@abc.abstractmethod
+# 	def run(self):
+# 		"""
+# 		Main routine
+# 		"""
+# 		return
 
 class Auction(AgentProcess):
 

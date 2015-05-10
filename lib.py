@@ -323,31 +323,13 @@ class AgentProcess(Process):
 
 		if handler:
 			self.attach_handler(socket, handler)
-			# if socket in self.handlers.keys() or handler in self.handlers.items():
-			# 	raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
-			# else:
-			# 	self.say('Registering handler {} for socket {}'.format(handler, socket))
-			# 	self.handlers.update({socket : handler})			
+			
 		
 	def close_sockets(self):
 		for socket_name, socket in self.sockets.items():
 			socket.close()
 
-
-
-		# self.sockets[name] = Socket(socket = socket, name = name, bind = bind)
-
-	# self.new_socket(self.frontend_name, zmq.ROUTER, bind = True)
-
-	# self.frontend = self.context.socket(zmq.ROUTER)
-	# self.frontend.bind(AddressManager.get_bind_address(self.frontend_name))
-	# self.attach_handler(self.frontend, self.handle_frontend)
-
-	def connect_socket(self, name):
-		self.socket[name].socket
-
-
-	def handle_sockets(self):
+	def poll_sockets(self):
 		for socket in dict(self.poller.poll(10)):
 			self.handlers[socket]()
 

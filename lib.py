@@ -281,30 +281,34 @@ class AgentProcess(Process):
 		if random() < probability: 
 			print(x)
 
-	def attach_handler(self, socket_name, handler):
-		if socket_name in self.handlers.keys() or handler in self.handlers.items():
-			raise Exception('Handler {} already registered for socket {}'.format(handler, socket_name))
+	def attach_handler(self, socket, handler):
+		if socket in self.handlers.keys() or handler in self.handlers.items():
+			raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
 		else:
-			# self.say('Registering handler {} for socket_name {}'.format(handler, socket_name))
-			self.handlers.update({socket_name : handler})
+			self.say('Registering handler {} for socket {}'.format(handler, socket))
+			self.handlers.update({socket : handler})
+			# print(socket)
+			# print(self.sockets)
+			self.poller.register(socket, zmq.POLLIN)
 
-	def new_socket(self, endpoint, socket_role, socket_type, bind = False, handler = None):
+	def new_socket(self, endpoint, socket_name, socket_type, bind = False, handler = None):
 		"""
-		:param socket_role: frontend, backend, etc.
+		:param sendpoint: where the socket should bind/connect to:
+		:param socket_name: frontend, backend, etc.
 		"""
 		# assert isinstance(socket, zmq.Socket)
 		assert isinstance(endpoint, str)
 		assert isinstance(bind, bool)
 		socket = self.context.socket(socket_type)
-		self.sockets[endpoint] = socket
-		setattr(self, socket_role, socket)
+		self.sockets[socket_name] = socket
+		setattr(self, socket_name, socket)
 		if bind:
 			address = AddressManager.get_bind_address(endpoint)
-			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_role, socket_type, address))
+			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_name, socket_type, address))
 			socket.bind(address)
 		else:
-			address = AddressManager.get_bind_address(endpoint)
-			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_role, socket_type, address))
+			address = AddressManager.get_connect_address(endpoint)
+			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_name, socket_type, address))
 			socket.connect(address)
 
 		if handler:

@@ -78,21 +78,9 @@ class BrokerWithQueueing(AgentProcess):
 			
 			sockets = dict(poller.poll(10))	
 
-			# self.simulate_crash(0.01)
-			# if self.jobs.qsize() % 1000 == 0: 
-			# print(self.jobs.qsize())
-			# print(n_jobs_received)
 			if frontend in sockets:
-				# package = Package.recv(frontend)
-				# frontend.recv_multipart()
 				n_jobs_received += 1
-				# self.say(package)
-				# job = Job(client=package.sender_addr, work=package.msg)
-				# self.say('On frontend: {}'.format(package))
-				# print('Putting job: {}'.format(job))
-				# print(frontend.recv_multipart())
-				# self.jobs.put(job)
-				
+	
 			
 			if backend in sockets:
 				package = Package.recv(backend)
@@ -150,12 +138,13 @@ class PingPongBroker(AgentProcess):
 	WORKER_EXPIRE_SECONDS = 3
 
 	def setup(self):
+		self.poller = zmq.Poller()
 		self.new_socket(self.frontend_name, 'frontend', zmq.ROUTER, bind = True, handler = self.handle_frontend)
 		self.new_socket(self.backend_name, 'backend', zmq.ROUTER, bind = True, handler = self.handle_backend)
 		
-		self.poller = zmq.Poller()
-		for socket_name, socket in self.sockets.items():
-			self.poller.register(socket, zmq.POLLIN)
+		
+		# for socket_name, socket in self.sockets.items():
+		# 	self.poller.register(socket, zmq.POLLIN)
 		
 		self.workers = heapdict()
 		self.jobs = DQueue(item_type = Job)

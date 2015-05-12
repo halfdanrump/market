@@ -57,7 +57,7 @@ def run_db_cluster(n_workers, verbose = False):
 
 if __name__ == '__main__':
 
-	Trader('trader', None, 'market_frontend', verbose = False).start()	
+	Trader('trader', None, 'market_frontend', verbose = True).start()	
 	run_auth_cluster(1, False)	
 	run_db_cluster(1, True)
 	# for i in xrange(1): REQTrader('trader', None, 'market_frontend', verbose = True).start()	

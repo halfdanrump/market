@@ -78,14 +78,15 @@ class MJDWorker(AgentProcess):
 		pong = Package(msg = MsgCode.PONG)
 		self.send(socket, pong)
 
-	def reconnect(self, socket):
+	def reconnect(self):
 		self.say('Connecting to broker...')
 		if hasattr(self, 'frontend'):
 			self.poller.unregister(self.frontend)
 
-		self.frontend = self.context.socket(zmq.DEALER)
-		self.frontend.connect(AddressManager.get_connect_address(self.frontend_name))
+		self.new_socket(endpoint = self.frontend_name, socket_name = 'frontend', socket_type = zmq.DEALER, bind = False, handler = self.handle_frontend)
 		self.poller.register(self.frontend, zmq.POLLIN)
+
+
 		package = Package(msg = MsgCode.STATUS_READY)
 		self.send(self.frontend, package)
 
@@ -145,9 +146,10 @@ class MJDWorker(AgentProcess):
 			self.send(self.frontend, broker_p)
 
 	def iteration(self):
-		sockets = dict(self.poller.poll())
-		if self.frontend in sockets:
-			self.handle_frontend()
+		self.poll_sockets()
+		# sockets = dict(self.poller.poll())
+		# if self.frontend in sockets:
+		# 	self.handle_frontend()
 			
 	
 
@@ -181,10 +183,15 @@ class DBWorker(MJDWorker):
 
 class Auth(MJDWorker):
 
+	def handle_backend(self):
+		self.say('On backend: {}'.format(self.backend.recv_multipart()))
+
 	def setup(self):
-		self.backend = self.context.socket(zmq.DEALER)
-		self.backend.connect(AddressManager.get_connect_address(self.backend_name))		
+		self.new_socket(endpoint = self.backend_name, socket_name = 'backend', socket_type = zmq.DEALER, bind = False, handler = self.handle_backend)
 		self.poller.register(self.backend, zmq.POLLIN)
+		# self.backend = self.context.socket(zmq.DEALER)
+		# self.backend.connect(AddressManager.get_connect_address(self.backend_name))		
+		# self.poller.register(self.backend, zmq.POLLIN)
 
 	def authenticate_order(self, order):
 		return True

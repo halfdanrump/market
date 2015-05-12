@@ -107,8 +107,8 @@ class MJDWorker(AgentProcess):
 		self.broker_timer.start()
 
 	def send(self, socket, package):
-		# assert isinstance(socket, zmq.Socket)
-		# assert isinstance(package, Package)
+		assert isinstance(socket, zmq.Socket)
+		assert isinstance(package, Package)
 		# Set timer for when to update broker aliveness if 
 		self.reset_timer()
 		package.send(socket)

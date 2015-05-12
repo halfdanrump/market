@@ -129,23 +129,25 @@ class MJDWorker(AgentProcess):
 		while True:
 			self.iteration()
 
+	def handle_frontend(self):
+		package = self.recv(self.frontend)
+		if package.msg == MsgCode.PING:
+			### Means that broker is getting impatient, so reply with a PONG
+			self.pong()
+		self.say('On frontend: {}'.format(package))
+		if package.encapsulated:
+			result = self.do_work(package.msg)
+								
+			client_p = package.encapsulated
+			client_p.msg = result
+			broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
+			self.say('Sending on frontend: {}'.format(broker_p))
+			self.send(self.frontend, broker_p)
 
 	def iteration(self):
 		sockets = dict(self.poller.poll())
 		if self.frontend in sockets:
-			package = self.recv(self.frontend)
-			if package.msg == MsgCode.PING:
-				### Means that broker is getting impatient, so reply with a PONG
-				self.pong()
-			self.say('On frontend: {}'.format(package))
-			if package.encapsulated:
-				result = self.do_work(package.msg)
-									
-				client_p = package.encapsulated
-				client_p.msg = result
-				broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
-				self.say('Sending on frontend: {}'.format(broker_p))
-				self.send(self.frontend, broker_p)
+			self.handle_frontend()
 			
 	
 

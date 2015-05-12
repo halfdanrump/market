@@ -62,7 +62,6 @@ class PingPongBroker(AgentProcess):
 		self.say('sending on backend: {}'.format(package))
 		package.send(self.backend)
 
-
 	def handle_frontend(self):
 		package = Package.recv(self.frontend)
 		self.say('On frontend: {}'.format(package))
@@ -86,11 +85,10 @@ class PingPongBroker(AgentProcess):
 				### Forward result from worker to client
 				self.say('Sending on frontend: {}'.format(package.encapsulated))
 				package.encapsulated.send(self.frontend)
-
 	
 	
 	def iteration(self):
-		self.handle_sockets()
+		self.poll_sockets()
 		if not self.jobs.empty() and len(self.workers) > 0:
 			self.send_job()
 		self.expire_workers()
@@ -98,7 +96,6 @@ class PingPongBroker(AgentProcess):
 	def run(self):
 		self.setup()
 		while True:
-			self.handle_sockets()
 			self.iteration()	
 		
 		self.backend.close()

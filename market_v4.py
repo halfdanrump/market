@@ -7,7 +7,7 @@ from lib import *
 import Queue
 context = zmq.Context()
 from traders import Trader
-from brokers import BrokerWithPool, BrokerWithQueueing
+from brokers import PingPongBroker
 from workers import REQWorker, Auth, DBWorker
 from time import sleep
 import sys
@@ -56,9 +56,15 @@ def run_auth_cluster(n_workers):
 	sleep(1)
 	sys.exit()	
 
+
+
 if __name__ == '__main__':
 
-	test_auth_cluster()
+	Trader('trader', None, 'market_frontend', verbose = True).start()	
+
+	market_broker = PingPongBroker('market_gateway', 'market_frontend', 'market_backend', verbose = True)
+	market_broker.start()
+	Auth('authenticator', 'market_backend', 'db_frontend', verbose = True).start()
 
 	# for i in xrange(1): REQTrader('trader', None, 'market_frontend', verbose = True).start()	
 

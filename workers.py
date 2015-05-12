@@ -125,52 +125,54 @@ class MJDWorker(AgentProcess):
 		return
 
 
-	def loop(self):
-		while True:
-			sockets = dict(self.poller.poll())
-			if self.frontend in sockets:
-				package = self.recv(self.frontend)
-				if package.msg == MsgCode.PING:
-					### Means that broker is getting impatient, so reply with a PONG
-					self.pong()
-				self.say('On frontend: {}'.format(package))
-				if package.encapsulated:
-					result = self.do_work(package.msg)
-										
-					client_p = package.encapsulated
-					client_p.msg = result
-					broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
-					self.say('Sending on frontend: {}'.format(broker_p))
-					self.send(self.frontend, broker_p)
-				
-		self.frontend.close()
+	def iteration(self):
+		sockets = dict(self.poller.poll())
+		if self.frontend in sockets:
+			package = self.recv(self.frontend)
+			if package.msg == MsgCode.PING:
+				### Means that broker is getting impatient, so reply with a PONG
+				self.pong()
+			self.say('On frontend: {}'.format(package))
+			if package.encapsulated:
+				result = self.do_work(package.msg)
+									
+				client_p = package.encapsulated
+				client_p.msg = result
+				broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
+				self.say('Sending on frontend: {}'.format(broker_p))
+				self.send(self.frontend, broker_p)
+			
+	
 
 	@abc.abstractmethod
 	def setup(self):
 		return
 
-	# @abc.abstractmethod
 	def run(self):
 		self.poller = zmq.Poller()
 		self.broker_aliveness = self.BROKER_ALIVENESS
 		self.setup()
 		self.reconnect()
-		self.loop()		
+		while True:
+			self.iteration()		
+		self.frontend.close()
+
+
+
+
 
 class DBWorker(MJDWorker):
+
+	def setup(self):
+		### Nothing to setup
+		pass
 
 	def do_work(self, workload):
 		return MsgCode.ORDER_STORED
 
-	def setup(self):
-		pass
+
 
 class Auth(MJDWorker):
-
-	# def __init__(self, *args):
-	# 	super(Auth, self).__init__(*args)
-	# 	self.backend = self.context.socket(zmq.DEALER)
-	# 	self.backend.connect(AddressManager.get_connect_address(self.backend_name))
 
 	def setup(self):
 		self.backend = self.context.socket(zmq.DEALER)
@@ -187,77 +189,3 @@ class Auth(MJDWorker):
 			return MsgCode.ORDER_RECEIVED
 		else:
 			return MsgCode.INVALID_ORDER
-
-
-
-	# def run(self):
-	# 	super(Auth, self).run()
-	# 	print('ASD')
-	# 	self.poller.register(self.backend)
-
-
-# class Auth(AgentProcess):
-# 	"""
-# 	REQ worker is frontend, connected to a broker
-# 	backend is DEALER socket, handing jobs to DB broker
-
-# 	"""
-	
-
-
-# 	def do_work(self, package):
-# 		if self.check_order(package.msg):
-# 			Package(msg = package.msg).send(self.backend)
-# 		return result
-
-
-# 	def check_order(self, order):
-# 		# sleep(random())
-# 		return True
-
-# 	def run(self):
-# 		frontend = self.context.socket(zmq.REQ)
-# 		frontend.connect(AddressManager.get_connect_address(self.frontend_name))
-# 		backend = self.context.socket(zmq.DEALER)
-# 		backend.connect(AddressManager.get_connect_address(self.backend_name))
-
-# 		poller = zmq.Poller()
-# 		poller.register(frontend, zmq.POLLIN)
-# 		poller.register(backend, zmq.POLLIN)
-
-# 		self.say('ready')
-
-# 		# frontend.send_multipart(WorkerMsg(STATUS_READY).message)
-
-# 		Package(msg = MsgCode.STATUS_READY).send(frontend)
-
-# 		pending = dict()
-
-# 		while True:
-
-# 			sockets = dict(poller.poll(100))
-# 			if frontend in sockets:
-# 				package = Package.recv(frontend)
-# 				self.say('On frontend: {}'.format(package))
-# 				if self.check_order(package.msg):
-# 					### Send package to database
-# 					self.say('Sending on backend: {}'.format(package))
-			
-# 					package.send(backend)
-# 					### Send ACK back to trader
-# 					result = self.do_work(package.msg)
-# 					client_p = package.encapsulated
-# 					client_p.msg = MsgCode.ORDER_RECEIVED
-# 					broker_package = Package(msg = MsgCode.JOB_COMPLETE, encapsulated=client_p)
-# 					self.say('Sending on frontend: {}'.format(broker_package))
-# 					broker_package.send(frontend)
-
-					
-# 				else:
-# 					raise Exception('Not implemented')
-					
-# 			if backend in sockets:
-# 				### Message back from DB
-# 				package = Package.recv(backend)
-# 				self.say('On backend: {}'.format(package))
-# 				# self.say(backend.recv_multipart())

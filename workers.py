@@ -125,6 +125,11 @@ class MJDWorker(AgentProcess):
 		return
 
 
+	def loop(self):
+		while True:
+			self.iteration()
+
+
 	def iteration(self):
 		sockets = dict(self.poller.poll())
 		if self.frontend in sockets:
@@ -153,8 +158,7 @@ class MJDWorker(AgentProcess):
 		self.broker_aliveness = self.BROKER_ALIVENESS
 		self.setup()
 		self.reconnect()
-		while True:
-			self.iteration()		
+		self.loop()
 		self.frontend.close()
 
 
@@ -168,6 +172,7 @@ class DBWorker(MJDWorker):
 		pass
 
 	def do_work(self, workload):
+		self.say('Doing work: {}'.format(workload))
 		return MsgCode.ORDER_STORED
 
 
@@ -184,8 +189,7 @@ class Auth(MJDWorker):
 
 	def do_work(self, order):
 		if self.authenticate_order(order):
-			# Package(msg = order).send(self.backend)
-			# package.send(backend)
+			Package(msg = order).send(self.backend)
 			return MsgCode.ORDER_RECEIVED
 		else:
 			return MsgCode.INVALID_ORDER

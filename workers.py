@@ -78,7 +78,7 @@ class MJDWorker(AgentProcess):
 		pong = Package(msg = MsgCode.PONG)
 		self.send(socket, pong)
 
-	def reconnect(self):
+	def reconnect(self, socket):
 		self.say('Connecting to broker...')
 		if hasattr(self, 'frontend'):
 			self.poller.unregister(self.frontend)

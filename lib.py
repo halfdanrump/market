@@ -288,23 +288,23 @@ class AgentProcess(Process):
 			# self.say('Registering handler {} for socket_name {}'.format(handler, socket_name))
 			self.handlers.update({socket_name : handler})
 
-	def new_socket(self, socket_name, socket_role, socket_type, bind = False, handler = None):
+	def new_socket(self, endpoint, socket_role, socket_type, bind = False, handler = None):
 		"""
 		:param socket_role: frontend, backend, etc.
 		"""
 		# assert isinstance(socket, zmq.Socket)
-		assert isinstance(socket_name, str)
+		assert isinstance(endpoint, str)
 		assert isinstance(bind, bool)
 		socket = self.context.socket(socket_type)
-		self.sockets[socket_name] = socket
+		self.sockets[endpoint] = socket
 		setattr(self, socket_role, socket)
 		if bind:
-			address = AddressManager.get_bind_address(socket_name)
-			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(socket_name, socket_role, socket_type, address))
+			address = AddressManager.get_bind_address(endpoint)
+			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_role, socket_type, address))
 			socket.bind(address)
 		else:
-			address = AddressManager.get_bind_address(socket_name)
-			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(socket_name, socket_role, socket_type, address))
+			address = AddressManager.get_bind_address(endpoint)
+			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_role, socket_type, address))
 			socket.connect(address)
 
 		if handler:
@@ -341,21 +341,6 @@ class AgentProcess(Process):
 
 
 
-	
-	
-	# def iteration(self):
-	# 	self.poll_sockets()
-	# 	if not self.jobs.empty() and len(self.workers) > 0:
-	# 		self.send_job()
-	# 	self.expire_workers()
-
-	# def run(self):
-	# 	self.setup()
-	# 	while True:
-	# 		self.iteration()	
-		
-	# 	self.backend.close()
-	# 	self.frontend.close()
 
 
 

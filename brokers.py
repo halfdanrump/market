@@ -142,10 +142,6 @@ class PingPongBroker(AgentProcess):
 		self.new_socket(self.frontend_name, 'frontend', zmq.ROUTER, bind = True, handler = self.handle_frontend)
 		self.new_socket(self.backend_name, 'backend', zmq.ROUTER, bind = True, handler = self.handle_backend)
 		
-		
-		# for socket_name, socket in self.sockets.items():
-		# 	self.poller.register(socket, zmq.POLLIN)
-		
 		self.workers = heapdict()
 		self.jobs = DQueue(item_type = Job)
 

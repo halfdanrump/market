@@ -10,7 +10,7 @@ from datetime import datetime
 from collections import namedtuple
 from copy import copy
 from collections import deque
-
+import re
 class MsgCode:
 	STATUS_READY = "READY"
 	ORDER_RECEIVED = "ORDER VERIFIED"
@@ -275,7 +275,10 @@ class AgentProcess(Process):
 		self.handlers = {}
 		
 	def say(self, msg):
-		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+		if not (re.match('.*{}.*'.format(MsgCode.PING), msg) or re.match('.*{}.*'.format(MsgCode.PONG), msg)):
+			print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+		 # or not re.match('.*{}.*'.format(MsgCode.PONG), msg):
+			
 
 	def simulate_crash(self, probability = 0.5):
 		if random() < probability: 

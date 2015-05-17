@@ -1,7 +1,7 @@
 from lib import *
 import itertools
 import atexit
-
+import sys
 
 class Trader(AgentProcess):
 	"""
@@ -27,3 +27,4 @@ class Trader(AgentProcess):
 		self.n_replies += 1
 		self.say('From backend: {}'.format(ack))
 		sleep(1)
+		if self.n_replies > 1: sys.exit(0)

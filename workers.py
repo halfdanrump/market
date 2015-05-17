@@ -32,6 +32,16 @@ from random import randint
 # 		self.frontend.close()
 
 
+# class OrderRouter(AgentProcess):
+
+
+
+
+
+
+
+
+
 class REQWorker(AgentProcess):
 	
 
@@ -84,8 +94,6 @@ class MJDWorker(AgentProcess):
 			self.poller.unregister(self.frontend)
 
 		self.new_socket(endpoint = self.frontend_name, socket_name = 'frontend', socket_type = zmq.DEALER, bind = False, handler = self.handle_frontend)
-		self.poller.register(self.frontend, zmq.POLLIN)
-
 
 		package = Package(msg = MsgCode.STATUS_READY)
 		self.send(self.frontend, package)
@@ -188,7 +196,7 @@ class Auth(MJDWorker):
 
 	def setup(self):
 		self.new_socket(endpoint = self.backend_name, socket_name = 'backend', socket_type = zmq.DEALER, bind = False, handler = self.handle_backend)
-		self.poller.register(self.backend, zmq.POLLIN)
+		# self.poller.register(self.backend, zmq.POLLIN)
 		# self.backend = self.context.socket(zmq.DEALER)
 		# self.backend.connect(AddressManager.get_connect_address(self.backend_name))		
 		# self.poller.register(self.backend, zmq.POLLIN)
@@ -197,6 +205,7 @@ class Auth(MJDWorker):
 		return True
 
 	def do_work(self, order):
+		self.say('Forwarding order to db_cluster')
 		if self.authenticate_order(order):
 			Package(msg = order).send(self.backend)
 			return MsgCode.ORDER_RECEIVED

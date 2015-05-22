@@ -1,73 +1,8 @@
 from lib import *
 from random import randint
-# class REQWorkerThread(AgentThread):
-		
-# 	def __init__(self, context, name, alive_event):
-# 		super(REQWorkerThread, self).__init__(context, name, alive_event)
-# 		self.setup()
-
-# 	def do_work(self):
-# 		sleep(1)
-# 		return sum(range(randint(0, 1000)))
-
-# 	def setup(self):
-# 		self.frontend = self.context.socket(zmq.REQ)
-# 		self.frontend.connect(AddressManager.get_connect_address('db_backend'))
-# 		self.poller = zmq.Poller()
-		
-# 	def run(self):
-# 		self.poller.register(self.frontend, zmq.POLLIN)
-# 		self.frontend.send_multipart(WorkerMsg(STATUS_READY).message)	
-# 		while self.alive_event.isSet():
-# 			sockets = dict(self.poller.poll(100))
-# 			if self.frontend in sockets:
-# 				request = self.frontend.recv_multipart()
-# 				self.say('On frontend: {}'.format(request))
-# 				client_id, empty, workload = request[0:3]
-# 				if workload == 'quit': 
-# 					break
-# 				result = self.do_work()	
-# 				self.frontend.send_multipart(WorkerMsg(STATUS_READY, client_id, str(result)).message)
-
-# 		self.frontend.close()
-
-
-# class OrderRouter(AgentProcess):
 
 
 
-
-
-
-
-
-
-class REQWorker(AgentProcess):
-	
-
-	def do_work(self, msg):
-		# sleep(1)
-		return str(hash(msg))
-		
-	def run(self):
-		frontend = self.context.socket(zmq.REQ)
-		frontend.connect(AddressManager.get_connect_address(self.frontend_name))
-		poller = zmq.Poller()
-		poller.register(frontend, zmq.POLLIN)
-		Package(msg = MsgCode.STATUS_READY).send(frontend)
-		while True:
-			sockets = dict(poller.poll(100))
-			if frontend in sockets:
-				package = Package.recv(frontend)
-				self.say('On frontend: {}'.format(package))
-				result = self.do_work(package.msg)
-				client_p = package.encapsulated
-				client_p.msg = result
-				broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
-				self.say('Sending on frontend: {}'.format(broker_p))
-				broker_p.send(frontend)
-				
-		frontend.close()
 
 from threading import Timer
 

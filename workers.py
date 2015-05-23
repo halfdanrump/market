@@ -29,10 +29,9 @@ class MJDWorker(AgentProcess):
 			self.poller.unregister(self.frontend)
 
 		self.new_socket(endpoint = self.frontend_name, socket_name = 'frontend', socket_type = zmq.DEALER, bind = False, handler = self.handle_frontend)
+		self.register_at_broker()
 
-		package = Package(msg = MsgCode.STATUS_READY)
-		self.send(self.frontend, package)
-
+	
 
 	def update_aliveness(self):
 		self.broker_aliveness -= 1
@@ -64,11 +63,6 @@ class MJDWorker(AgentProcess):
 		self.broker_aliveness = self.BROKER_ALIVENESS
 		return package
 
-	@abc.abstractmethod
-	def do_work(self, workload):
-		return
-
-
 	def loop(self):
 		while True:
 			self.iteration()
@@ -94,21 +88,43 @@ class MJDWorker(AgentProcess):
 		# if self.frontend in sockets:
 		# 	self.handle_frontend()
 			
-	
-
-	@abc.abstractmethod
-	def setup(self):
-		return
-
 	def run(self):
 		self.poller = zmq.Poller()
 		self.broker_aliveness = self.BROKER_ALIVENESS
 		self.setup()
 		self.reconnect()
 		self.loop()
-		self.frontend.close()
+		self.frontend.close()	
+
+	def register_at_broker(self):
+		package = Package(msg = MsgCode.STATUS_READY)
+		self.send(self.frontend, package)
 
 
+
+	@abc.abstractmethod
+	def setup(self):
+		return
+
+	@abc.abstractmethod
+	def do_work(self, workload):
+		return
+
+
+
+class Auction(MJDWorker):
+
+	def setup(self):
+		self.pending_orders = []
+
+	def do_work(self, order):
+		self.pending_orders.append(order)
+		self.say(self.pending_orders)
+
+	def register_at_broker(self):
+		name_p = Package(msg = self.name)
+		package = Package(msg = MsgCode.STATUS_READY, encapsulated = name_p)
+		self.send(self.frontend, package)		
 
 
 
@@ -123,8 +139,20 @@ class DBWorker(MJDWorker):
 		return MsgCode.ORDER_STORED
 
 
+# socket = {	'name' : 'backend', 
+# 			'endpoint' : 'tcp://localhost:5000',
+# 			'type' : zmq.DEALER,
+# 			'bind': False,
+# 			'recv_handler' : 
+# 			'send_handler' : 
+# 			}
+
 
 class Auth(MJDWorker):
+
+	# def __init__(self, name, frontend, backend_db, backend_auction, verbose = False):
+	# 	super(Auth, self).__init__(name = name, frontend = frontend, backend = backend_db, verbose = verbose)
+	# 	self.backend_auction_name = backend_auction_name
 
 	def handle_backend(self):
 		self.say('On backend: {}'.format(self.backend.recv_multipart()))

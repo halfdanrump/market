@@ -1,14 +1,8 @@
 from lib import *
 from collections import namedtuple
-
-Job = namedtuple('Job', 'client work')
-# Worker = namedtuple('Worker', 'worker_addr expires')
 from datetime import datetime, timedelta
 from heapdict import heapdict
-
-
-
-
+Job = namedtuple('Job', 'client work')
 
 
 class PingPongBroker(AgentProcess):
@@ -101,4 +95,13 @@ class JobQueueBroker(PingPongBroker):
 			self.send_job()
 		self.expire_workers()
 
+
+# class ServiceQueueBroker(PingPongBroker):
+
+# 	def setup(self):
+# 		super(JobQueueBroker, self).setup()
+# 		self.services = 
+
+# 		self.jobs = DQueue(item_type = Job)
+# 		self.jobs_received = 0	
 

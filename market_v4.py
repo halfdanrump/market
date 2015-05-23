@@ -33,6 +33,13 @@ def run_db_cluster(n_workers, verbose = False):
 	for i in xrange(n_workers): DBWorker('db_worker', 'db_backend', None, verbose = verbose).start()
 
 
+# def run_auction_cluster(n_workers, verbose = False):
+# 	auction_broker = JobQueueBroker('db_broker', 'db_frontend', 'db_backend', verbose = verbose)
+# 	db_broker.start()
+# 	for i in xrange(n_workers): Auction('auction', '', None, verbose = verbose).start()
+
+
+
 if __name__ == '__main__':
 	Trader('trader', None, 'market_frontend', verbose = True).start()	
 	run_auth_cluster(1, False)	

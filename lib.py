@@ -112,6 +112,7 @@ class Package(object):
 		if socket.TYPE == zmq.ROUTER:
 			socket.send_multipart(self.__aslist__())
 		elif socket.TYPE == zmq.DEALER:
+			# print(self.__aslist__()[1:])
 			socket.send_multipart(self.__aslist__()[1:])
 		elif socket.TYPE == zmq.REQ or socket.TYPE == zmq.REP:
 			
@@ -257,6 +258,63 @@ Implementation ways:
 3) make a profiler class 
 
 """
+class Sock(object):
+	def __init__(self, name, socket_type, bind, handler):
+		assert isinstance(name, str)
+		self.name = name
+		assert isinstance(socket_type, int)
+		self.socket_type = socket_type
+		assert isinstance(bind, bool)
+		self.bind = bind
+		# assert callable(handler) or handler == None
+		self.handler = handler
+		# assert isinstance(context, zmq.Context)
+		# self.socket_obj = context.socket(socket_type)
+
+	def __repr__(self):
+		return str(self.__dict__)
+		return super(Sock, self).__repr__() + ". Name: '{}'. Endpoint: '{}')".format(self.name, self.endpoint)
+
+
+	# def __getitem__(self, item):
+	# 	return self.item
+from multi_key_dict import multi_key_dict
+class SocketDict(multi_key_dict):
+
+	# def __init__(self, *sockets):
+	# 	# self.sockets = {}
+	# 	for sock in sockets:
+	# 		assert isinstance(sock, Sock)
+	# 		if self.has_key(sock.name):
+	# 			raise Exception('Socket with the name {} is not unique'.format(socket.name))
+	# 		self[sock.name, sock.socket_obj] = sock
+	# 		# self.update({socket.name: socket})
+			
+
+
+	# def __getitem__(self, socket_name):
+	# 	return self[socket_name]
+
+	# def __getattribute__(self, attr):
+	# 	return self.sockets.attr
+	# 	pass
+
+	def put(self, sock):
+		assert isinstance(sock, Sock)
+		assert hasattr(sock, 'name')
+		assert hasattr(sock, 'endpoint')
+		assert hasattr(sock, 'socket_obj')
+		print('ASDSADLKJ')
+		print(self)
+		print(sock)
+		self[sock.name, sock.socket_obj] = sock
+
+	def names(self):
+		return map(lambda d: d.name, self.values())
+		# return map(lambda s: s.gn, self.sockets.values())
+
+	def sockets(self):
+		return map(lambda d: d.socket_obj, self.values())
 
 
 
@@ -264,25 +322,39 @@ class AgentProcess(Process):
 
 	__metaclass__ = abc.ABCMeta
 
-	def __init__(self, name, frontend = None, backend = None, verbose = False, n_iterations = -1):
-		Process.__init__(self)
-		if not verbose: self.say = lambda x: None
+	def __init__(self, name, endpoints, verbose = False):
+		Process.__init__(self)		
 		self.context = zmq.Context()
-		self.name = "{}_{}".format(id(self), name)
-		self.frontend_name = frontend
-		self.backend_name = backend
-		self.sockets = {}
-		self.handlers = {}
-		
-	def say(self, msg):
-		if not (re.match('.*{}.*'.format(MsgCode.PING), msg) or re.match('.*{}.*'.format(MsgCode.PONG), msg)):
-			print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
-		 # or not re.match('.*{}.*'.format(MsgCode.PONG), msg):
-			
+		self.sockets = SocketDict()
+		assert isinstance(endpoints, dict)
+		self.endpoints = endpoints
+		# assert set(self.sockets.names()) == set(endpoints.keys()), "Argument 'endpoints' must be a dictionary with endpoint names as items for each of the keys {}".format(self.sockets.names())
 
-	def simulate_crash(self, probability = 0.5):
-		if random() < probability: 
-			print(x)
+		if not verbose: self.say = lambda x: None
+		
+		self.name = "{}_{}".format(id(self), name)
+
+
+	# def init_socket(self, socket_name):
+	# 	sock = self.sockets[socket_name]
+	# 	sock.socket_obj = self.context.socket(sock.socket_type)
+	# 	setattr(self, socket_name, sock.socket_obj)
+	# 	if sock.bind:
+	# 		address = AddressManager.get_bind_address(sock.endpoint)
+	# 		sock.socket_obj.bind(address)
+	# 	else:
+	# 		address = AddressManager.get_connect_address(sock.endpoint)
+	# 		sock.socket_obj.connect(address)
+	# 	if sock.handler:
+	# 		if not hasattr(self, sock.handler): 
+	# 			raise Exception('{} has no handler {}'.format(self.__class__, sock.handler))
+	# 		if hasattr(self, 'poller') and isinstance(self.poller, zmq.Poller):
+	# 			self.poller.register(sock.socket_obj, zmq.POLLIN)
+	# 		else:
+	# 			self.poller = zmq.Poller()
+	# 			self.poller.register(sock.socket_obj, zmq.POLLIN)
+
+	
 
 	def attach_handler(self, socket, handler):
 		if socket in self.handlers.keys() or handler in self.handlers.items():
@@ -294,37 +366,58 @@ class AgentProcess(Process):
 			# print(self.sockets)
 			self.poller.register(socket, zmq.POLLIN)
 
-	def new_socket(self, endpoint, socket_name, socket_type, bind = False, handler = None):
-		"""
-		:param sendpoint: where the socket should bind/connect to:
-		:param socket_name: frontend, backend, etc.
-		"""
-		# assert isinstance(socket, zmq.Socket)
-		assert isinstance(endpoint, str)
-		assert isinstance(bind, bool)
-		socket = self.context.socket(socket_type)
-		self.sockets[socket_name] = socket
-		setattr(self, socket_name, socket)
-		if bind:
-			address = AddressManager.get_bind_address(endpoint)
-			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_name, socket_type, address))
-			socket.bind(address)
-		else:
-			address = AddressManager.get_connect_address(endpoint)
-			self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_name, socket_type, address))
-			socket.connect(address)
+		
+	def say(self, msg):
+		if not (re.match('.*{}.*'.format(MsgCode.PING), msg) or re.match('.*{}.*'.format(MsgCode.PONG), msg)):
+			print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+		 # or not re.match('.*{}.*'.format(MsgCode.PONG), msg):
+			
 
-		if handler:
-			self.attach_handler(socket, handler)
+	def simulate_crash(self, probability = 0.5):
+		if random() < probability: 
+			print(x)
+
+	# def attach_handler(self, socket, handler):
+	# 	if socket in self.handlers.keys() or handler in self.handlers.items():
+	# 		raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
+	# 	else:
+	# 		self.say('Registering handler {} for socket {}'.format(handler, socket))
+	# 		self.handlers.update({socket : handler})
+	# 		# print(socket)
+	# 		# print(self.sockets)
+	# 		self.poller.register(socket, zmq.POLLIN)
+
+	# def new_socket(self, endpoint, socket_name, socket_type, bind = False, handler = None):
+	# 	"""
+	# 	:param sendpoint: where the socket should bind/connect to:
+	# 	:param socket_name: frontend, backend, etc.
+	# 	"""
+	# 	# assert isinstance(socket, zmq.Socket)
+	# 	assert isinstance(endpoint, str)
+	# 	assert isinstance(bind, bool)
+	# 	socket = self.context.socket(socket_type)
+	# 	self.sockets[socket_name] = socket
+	# 	setattr(self, socket_name, socket)
+	# 	if bind:
+	# 		address = AddressManager.get_bind_address(endpoint)
+	# 		self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_name, socket_type, address))
+	# 		socket.bind(address)
+	# 	else:
+	# 		address = AddressManager.get_connect_address(endpoint)
+	# 		self.say('New socket. Name: {}. Role: {}.  Type {}. Binding to {}'.format(endpoint, socket_name, socket_type, address))
+	# 		socket.connect(address)
+
+	# 	if handler:
+	# 		self.attach_handler(socket, handler)
 			
 		
-	def close_sockets(self):
-		for socket_name, socket in self.sockets.items():
-			socket.close()
+	# def close_sockets(self):
+	# 	for socket_name, socket in self.sockets.items():
+	# 		socket.close()
 
-	def poll_sockets(self):
-		for socket in dict(self.poller.poll(10)):
-			self.handlers[socket]()
+	# def poll_sockets(self):
+	# 	for socket in dict(self.poller.poll(10)):
+	# 		self.handlers[socket]()
 
 	
 	@abc.abstractmethod
@@ -335,17 +428,76 @@ class AgentProcess(Process):
 	def iteration(self):
 		return
 
+	def init_all_sockets(self):
+		for sock in self.__sockets__:
+			sock.endpoint = self.endpoints[sock.name]
+			sock.socket_obj = self.context.socket(sock.socket_type)
+			self.sockets.put(sock)
+			setattr(self, sock.name, sock.socket_obj)
+			address = AddressManager.get_connect_address(sock.endpoint)
+			sock.socket_obj.connect(address)
+			self.start_socket_poll(sock.name)
+
+	def start_socket_poll(self, socket_name):
+		"""
+		Connects socket to a handler function and registers in poller
+		"""
+		sock = self.sockets[socket_name]
+		if sock.bind:
+			address = AddressManager.get_bind_address(sock.endpoint)
+			sock.socket_obj.bind(address)
+		else:
+			address = AddressManager.get_connect_address(sock.endpoint)
+			sock.socket_obj.connect(address)
+		if sock.handler:
+			if not hasattr(self, sock.handler): 
+				raise Exception('{} has no handler {}'.format(self.__class__, sock.handler))
+			if hasattr(self, 'poller') and isinstance(self.poller, zmq.Poller):
+				self.poller.register(sock.socket_obj, zmq.POLLIN)
+			else:
+				self.poller = zmq.Poller()
+				self.poller.register(sock.socket_obj, zmq.POLLIN)
+
+
+	def poll_sockets(self):
+		sockets = dict(self.poller.poll(100))
+		for socket in self.sockets.sockets():
+			# print(self.sockets[socket].name)
+			if socket in sockets:
+				self.sockets[socket].handler()
+
 	def run(self):
 		"""
 		Main routine
 		"""
+		self.init_all_sockets()
 		self.setup()
 		while True:
 			self.iteration()	
 		
-		self.backend.close()
-		self.frontend.close()
+		# self.backend.close()
+		# self.frontend.close()
 
+class TeztAgent(AgentProcess):
+
+	__sockets__ = [Sock('backend', zmq.DEALER, False, 'backend_handler')]
+	
+	def backend_handler(self):
+		print(self.backend.recv_multipart())
+
+	def iteration(self):
+		print('Iterate')
+		self.poll_sockets()
+		order = 'new order {}'.format(random())
+		package = Package(msg = order)
+		self.say('Sending on backend: {}'.format(package))
+		package.send(self.backend)
+
+	
+	
+
+	def setup(self):
+		pass
 
 
 

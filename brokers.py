@@ -8,10 +8,15 @@ Job = namedtuple('Job', 'client work')
 class PingPongBroker(AgentProcess):
 	WORKER_EXPIRE_SECONDS = 3
 
+	__sockets__ = [
+	Sock('frontend', zmq.ROUTER, bind = True, handler = 'handle_frontend'),
+	Sock('backend', zmq.ROUTER, bind = True, handler = 'recv_from_worker')
+	]
+
 	def setup(self):
 		self.poller = zmq.Poller()
-		self.new_socket(self.frontend_name, 'frontend', zmq.ROUTER, bind = True, handler = self.handle_frontend)
-		self.new_socket(self.backend_name, 'backend', zmq.ROUTER, bind = True, handler = self.recv_from_worker)
+		# self.new_socket(self.frontend_name, 'frontend', zmq.ROUTER, bind = True, handler = self.handle_frontend)
+		# self.new_socket(self.backend_name, 'backend', zmq.ROUTER, bind = True, handler = self.recv_from_worker)
 		self.workers = heapdict()
 		
 	def expire_workers(self):
@@ -61,6 +66,8 @@ class PingPongBroker(AgentProcess):
 
 
 class JobQueueBroker(PingPongBroker):
+
+
 	
 	def setup(self):
 		super(JobQueueBroker, self).setup()

@@ -543,7 +543,7 @@ class TeztAgentReconnect(AgentProcess):
 		# print('Iterate')
 		# self.poll_sockets()
 		# Thread(target = self.poll_sockets).start()
-		# self.poll_sockets()
+		self.poll_sockets()
 		order = 'new order {}'.format(random())
 		package = Package(msg = order)
 		self.say('Sending on backend: {}'.format(package))

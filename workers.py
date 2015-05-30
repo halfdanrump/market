@@ -10,6 +10,9 @@ from threading import Timer
 
 class MJDWorker(AgentProcess):
 
+	__sockets__ = [
+	Sock('frontend', zmq.ROUTER, bind = True, handler = 'handle_frontend')
+	]
 	__metaclass__ = abc.ABCMeta
 
 	BROKER_TIMEOUT = 1;
@@ -149,6 +152,7 @@ class DBWorker(MJDWorker):
 
 
 class Auth(MJDWorker):
+
 
 	# def __init__(self, name, frontend, backend_db, backend_auction, verbose = False):
 	# 	super(Auth, self).__init__(name = name, frontend = frontend, backend = backend_db, verbose = verbose)

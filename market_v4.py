@@ -30,7 +30,7 @@ def run_auth_cluster(n_workers, verbose = False):
 def run_db_cluster(n_workers, verbose = False):
 	db_broker = JobQueueBroker('db_broker', {'frontend':'db_frontend', 'backend':'db_backend'}, verbose = verbose)
 	db_broker.start()
-	# for i in xrange(n_workers): DBWorker('db_worker', {'frontend': 'db_backend'}, verbose = verbose).start()
+	for i in xrange(n_workers): DBWorker('db_worker', {'frontend': 'db_backend'}, verbose = verbose).start()
 
 
 # def run_auction_cluster(n_workers, verbose = False):

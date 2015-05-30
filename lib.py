@@ -435,7 +435,7 @@ class AgentProcess(Process):
 	def init_socket(self, sock):
 		self.say('INIT socket {}'.format(sock))
 		if hasattr(self, sock.name):
-			print('ASWKDJHASD')
+			getattr(self, sock.name).close()
 		sock.set_endpoint(self.endpoints[sock.name])
 		sock.create_socket(self.context)
 		self.say(sock.connect())

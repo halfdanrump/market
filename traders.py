@@ -93,8 +93,6 @@ class Trader(AgentProcess):
 		# context = zmq.Context()
 		# self.backend = context.socket(zmq.DEALER)
 		# print(self.backend)
-		print(self.context)
-		print(self.backend.context)
 		self.backend.send_multipart(["", "hello"])
 		# self.backend.send('asd')
 		# package.send(self.backend)

@@ -275,6 +275,30 @@ class Sock(object):
 		return str(self.__dict__)
 		return super(Sock, self).__repr__() + ". Name: '{}'. Endpoint: '{}')".format(self.name, self.endpoint)
 
+	def create_socket(self, context):
+		self.socket_obj = context.socket(self.socket_type)
+		# self.socket_obj.setsockopt(zmq.RCVHWM, 1000000)
+
+	def set_endpoint(self, endpoint):
+		self.endpoint = endpoint
+		if self.bind:
+			self.address = AddressManager.get_bind_address(endpoint)
+		else:
+			self.address = AddressManager.get_connect_address(endpoint)
+
+	def connect(self):
+		assert hasattr(self, 'socket_obj')
+		assert hasattr(self, 'address'), 'Run set_enpoint first.'
+		if self.bind:
+			self.socket_obj.bind(self.address)
+			return 'Bound to {}'.format(self.address)
+		else:
+			self.socket_obj.connect(self.address)
+			return 'Connected to {}'.format(self.address)
+
+
+
+
 
 	# def __getitem__(self, item):
 	# 	return self.item
@@ -304,9 +328,6 @@ class SocketDict(multi_key_dict):
 		assert hasattr(sock, 'name')
 		assert hasattr(sock, 'endpoint')
 		assert hasattr(sock, 'socket_obj')
-		print('ASDSADLKJ')
-		print(self)
-		print(sock)
 		self[sock.name, sock.socket_obj] = sock
 
 	def names(self):
@@ -333,7 +354,7 @@ class AgentProcess(Process):
 		if not verbose: self.say = lambda x: None
 		
 		self.name = "{}_{}".format(id(self), name)
-
+		self.poller = zmq.Poller()
 
 	# def init_socket(self, socket_name):
 	# 	sock = self.sockets[socket_name]
@@ -356,19 +377,19 @@ class AgentProcess(Process):
 
 	
 
-	def attach_handler(self, socket, handler):
-		if socket in self.handlers.keys() or handler in self.handlers.items():
-			raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
-		else:
-			self.say('Registering handler {} for socket {}'.format(handler, socket))
-			self.handlers.update({socket : handler})
-			# print(socket)
-			# print(self.sockets)
-			self.poller.register(socket, zmq.POLLIN)
+	# def attach_handler(self, socket, handler):
+	# 	if socket in self.handlers.keys() or handler in self.handlers.items():
+	# 		raise Exception('Handler {} already registered for socket {}'.format(handler, socket))
+	# 	else:
+	# 		self.say('Registering handler {} for socket {}'.format(handler, socket))
+	# 		self.handlers.update({socket : handler})
+	# 		# print(socket)
+	# 		# print(self.sockets)
+	# 		self.poller.register(socket, zmq.POLLIN)
 
 		
 	def say(self, msg):
-		if not (re.match('.*{}.*'.format(MsgCode.PING), msg) or re.match('.*{}.*'.format(MsgCode.PONG), msg)):
+		if not (re.match('.*{}.*'.format(MsgCode.PING), str(msg)) or re.match('.*{}.*'.format(MsgCode.PONG), str(msg))):
 			print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
 		 # or not re.match('.*{}.*'.format(MsgCode.PONG), msg):
 			
@@ -429,13 +450,17 @@ class AgentProcess(Process):
 		return
 
 	def init_all_sockets(self):
+		self.say('Endponts: '.format(self.endpoints))
 		for sock in self.__sockets__:
-			sock.endpoint = self.endpoints[sock.name]
-			sock.socket_obj = self.context.socket(sock.socket_type)
+			# self.say('Starting socket: {}'.format(sock))
+			sock.set_endpoint(self.endpoints[sock.name])
+			sock.create_socket(self.context)
+			# sock.socket_obj = self.context.socket(sock.socket_type)
+			sock.connect()
 			self.sockets.put(sock)
 			setattr(self, sock.name, sock.socket_obj)
-			address = AddressManager.get_connect_address(sock.endpoint)
-			sock.socket_obj.connect(address)
+			
+			# sock.socket_obj.connect(sock.address)
 			self.start_socket_poll(sock.name)
 
 	def start_socket_poll(self, socket_name):
@@ -443,28 +468,40 @@ class AgentProcess(Process):
 		Connects socket to a handler function and registers in poller
 		"""
 		sock = self.sockets[socket_name]
-		if sock.bind:
-			address = AddressManager.get_bind_address(sock.endpoint)
-			sock.socket_obj.bind(address)
-		else:
-			address = AddressManager.get_connect_address(sock.endpoint)
-			sock.socket_obj.connect(address)
+		# self.say('Starting socket: {}'.format(sock))
+		# if sock.bind:
+		# 	self.say('Binding to {}'.format(sock.address))
+		# 	sock.socket_obj.bind(sock.address)
+		# else:
+		# 	self.say('Connecting to {}'.format(sock.address))
+		# 	sock.socket_obj.connect(sock.address)
 		if sock.handler:
 			if not hasattr(self, sock.handler): 
 				raise Exception('{} has no handler {}'.format(self.__class__, sock.handler))
-			if hasattr(self, 'poller') and isinstance(self.poller, zmq.Poller):
-				self.poller.register(sock.socket_obj, zmq.POLLIN)
-			else:
-				self.poller = zmq.Poller()
-				self.poller.register(sock.socket_obj, zmq.POLLIN)
+			sock.handler = getattr(self, sock.handler)
+			self.say('Registering socket in poller: {}'.format(sock.socket_obj))
+			self.poller.register(sock.socket_obj, zmq.POLLIN)
+
+			# if hasattr(self, 'poller') and isinstance(self.poller, zmq.Poller):
+			# 	self.poller.register(sock.socket_obj, zmq.POLLIN)
+			# else:
+			# 	self.poller = zmq.Poller()
+			# 	self.poller.register(sock.socket_obj, zmq.POLLIN)
+		else:
+			self.say('No handler attached')
+		self.say('Sockets: {}'.format(str(self.sockets)))
 
 
 	def poll_sockets(self):
-		sockets = dict(self.poller.poll(100))
-		for socket in self.sockets.sockets():
-			# print(self.sockets[socket].name)
-			if socket in sockets:
-				self.sockets[socket].handler()
+		sockets = True
+		# self.say('In poll')
+		while sockets:
+			sockets = dict(self.poller.poll(1))
+			# self.say(str(sockets))
+			for socket in self.sockets.sockets():
+				# print(self.sockets[socket].name)
+				if socket in sockets:
+					self.sockets[socket].handler()
 
 	def run(self):
 		"""
@@ -478,20 +515,26 @@ class AgentProcess(Process):
 		# self.backend.close()
 		# self.frontend.close()
 
+# from threading import Thread
+
 class TeztAgent(AgentProcess):
 
 	__sockets__ = [Sock('backend', zmq.DEALER, False, 'backend_handler')]
 	
 	def backend_handler(self):
-		print(self.backend.recv_multipart())
+		m = self.backend.recv_multipart()
+		# self.say(str(m))
 
 	def iteration(self):
-		print('Iterate')
+		# print('Iterate')
 		self.poll_sockets()
+		# Thread(target = self.poll_sockets).start()
+		# self.poll_sockets()
 		order = 'new order {}'.format(random())
 		package = Package(msg = order)
 		self.say('Sending on backend: {}'.format(package))
 		package.send(self.backend)
+		sleep(1)
 
 	
 	

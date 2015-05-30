@@ -14,7 +14,7 @@ class PingPongBroker(AgentProcess):
 	]
 
 	def setup(self):
-		self.poller = zmq.Poller()
+		# self.poller = zmq.Poller()
 		# self.new_socket(self.frontend_name, 'frontend', zmq.ROUTER, bind = True, handler = self.handle_frontend)
 		# self.new_socket(self.backend_name, 'backend', zmq.ROUTER, bind = True, handler = self.recv_from_worker)
 		self.workers = heapdict()

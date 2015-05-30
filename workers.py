@@ -139,7 +139,7 @@ class DBWorker(MJDWorker):
 		return MsgCode.ORDER_STORED
 
 
-# socket = {	'name' : 'backend', 
+# socket = {'name' : 'backend', 
 # 			'endpoint' : 'tcp://localhost:5000',
 # 			'type' : zmq.DEALER,
 # 			'bind': False,

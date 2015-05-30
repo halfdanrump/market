@@ -11,7 +11,7 @@ from threading import Timer
 class MJDWorker(AgentProcess):
 
 	__sockets__ = [
-	Sock('frontend', zmq.ROUTER, bind = True, handler = 'handle_frontend')
+	Sock('frontend', zmq.DEALER, bind = False, handler = 'handle_frontend')
 	]
 	__metaclass__ = abc.ABCMeta
 
@@ -26,27 +26,39 @@ class MJDWorker(AgentProcess):
 		pong = Package(msg = MsgCode.PONG)
 		self.send(socket, pong)
 
-	def reconnect(self):
+	def reconnect_to_broker(self):
 		self.say('Connecting to broker...')
-		if hasattr(self, 'frontend'):
-			self.poller.unregister(self.frontend)
-
-		self.new_socket(endpoint = self.frontend_name, socket_name = 'frontend', socket_type = zmq.DEALER, bind = False, handler = self.handle_frontend)
+		# sock = self.sockets['frontend']
+		# self.frontend = self.context.socket(zmq.DEALER)
+		# self.frontend.connect('tcp://localhost:5563')
 		self.register_at_broker()
-
-	
+		# if hasattr(self, 'frontend'):
+		# 	self.poller.unregister(self.frontend)
+		# self.init_socket(self.sockets['frontend'])
+		# self.sockets['frontend'].create_socket(self.context)
+		# self.sockets['frontend'].connect()
+		# self.new_socket(endpoint = self.frontend_name, socket_name = 'frontend', socket_type = zmq.DEALER, bind = False, handler = self.handle_frontend)
+		
+		print(self.frontend)
+		self.frontend.send_multipart(["", "hello"])
+		self.register_at_broker()
+# 
+	def register_at_broker(self):
+		package = Package(msg = MsgCode.STATUS_READY)
+		self.send(self.frontend, package)
 
 	def update_aliveness(self):
 		self.broker_aliveness -= 1
 		# self.say('aliveness: {}'.format(self.broker_aliveness))
 		if self.broker_aliveness == 0:
 			self.broker_aliveness = self.BROKER_ALIVENESS
-			self.reconnect()
+			self.reconnect_to_broker()
 			self.loop()
 		else:
 			self.ping(self.frontend)
 
 	def reset_timer(self):
+		print('RESET TIMER')
 		if hasattr(self, 'broker_timer'):
 			self.broker_timer.cancel()
 		self.broker_timer = Timer(self.BROKER_TIMEOUT, self.update_aliveness)
@@ -57,10 +69,15 @@ class MJDWorker(AgentProcess):
 		assert isinstance(package, Package)
 		# Set timer for when to update broker aliveness if 
 		self.reset_timer()
+		print('SEINDING SOME SHIT!!: {}'.format(package))
+		print(self.frontend)
+		self.frontend.connect('tcp://localhost:5563')
+		print(self.sockets[socket])
 		package.send(socket)
 
 	def recv(self, socket):
 		package = Package.recv(socket)
+		self.say(package)
 		### As soon as the worker recieves a message from the broker it resets the broker_aliveness
 		self.reset_timer()
 		self.broker_aliveness = self.BROKER_ALIVENESS
@@ -92,16 +109,17 @@ class MJDWorker(AgentProcess):
 		# 	self.handle_frontend()
 			
 	def run(self):
-		self.poller = zmq.Poller()
+		self.init_all_sockets()
+		print(self.sockets)
+		# self.frontend.send_multipart(["", MsgCode.STATUS_READY])
 		self.broker_aliveness = self.BROKER_ALIVENESS
 		self.setup()
-		self.reconnect()
+		self.reconnect_to_broker()
+		# self.register_at_broker()
 		self.loop()
 		self.frontend.close()	
 
-	def register_at_broker(self):
-		package = Package(msg = MsgCode.STATUS_READY)
-		self.send(self.frontend, package)
+
 
 
 
@@ -113,6 +131,136 @@ class MJDWorker(AgentProcess):
 	def do_work(self, workload):
 		return
 
+class PingPongWorker(AgentProcess):
+
+	__sockets__ = [
+	Sock('frontend', zmq.DEALER, bind = False, handler = 'handle_frontend')
+	]
+	__metaclass__ = abc.ABCMeta
+
+	BROKER_TIMEOUT = 1;
+	BROKER_ALIVENESS = 3 # Number of timeouts before the worker tries to reconnect to the broker
+
+	def ping(self, socket):
+		ping = Package(msg = MsgCode.PING)
+		self.send(socket, ping)
+
+	def pong(self, socket):
+		pong = Package(msg = MsgCode.PONG)
+		self.send(socket, pong)
+
+	def reconnect_to_broker(self):
+		self.say('Connecting to broker...')
+		# sock = self.sockets['frontend']
+		# self.frontend = self.context.socket(zmq.DEALER)
+		# self.frontend.connect('tcp://localhost:5563')
+		self.broker_aliveness = self.BROKER_ALIVENESS
+		s
+		self.init_socket(self.sockets['frontend'])
+		self.send_ready_msg()
+		# if hasattr(self, 'frontend'):
+		# 	self.poller.unregister(self.frontend)
+		# self.init_socket(self.sockets['frontend'])
+		# self.sockets['frontend'].create_socket(self.context)
+		# self.sockets['frontend'].connect()
+		# self.new_socket(endpoint = self.frontend_name, socket_name = 'frontend', socket_type = zmq.DEALER, bind = False, handler = self.handle_frontend)
+		
+		
+# 
+	def send_ready_msg(self):
+		package = Package(msg = MsgCode.STATUS_READY)
+		self.send(self.frontend, package)
+
+	def update_aliveness(self):
+		self.broker_aliveness -= 1
+		# self.say('aliveness: {}'.format(self.broker_aliveness))
+		if self.broker_aliveness == 0:
+			# self.broker_aliveness = self.BROKER_ALIVENESS
+			self.reconnect_to_broker()
+			self.loop()
+		else:
+			self.ping(self.frontend)
+
+	def reset_timer(self):
+		if hasattr(self, 'broker_timer'):
+			self.broker_timer.cancel()
+		self.broker_timer = Timer(self.BROKER_TIMEOUT, self.update_aliveness)
+		self.broker_timer.start()
+
+	def send(self, socket, package):
+		assert isinstance(socket, zmq.Socket)
+		assert isinstance(package, Package)
+		# Set timer for when to update broker aliveness if 
+		self.reset_timer()
+		# print('SEINDING SOME SHIT!!: {}'.format(package))
+		# print(self.frontend)
+		# self.frontend.connect('tcp://localhost:5563')
+		# print(self.sockets[socket])
+		package.send(socket)
+
+	def recv(self, socket):
+		package = Package.recv(socket)
+		self.say(package)
+		### As soon as the worker recieves a message from the broker it resets the broker_aliveness
+		self.reset_timer()
+		self.broker_aliveness = self.BROKER_ALIVENESS
+		return package
+
+	def loop(self):
+		while True:
+			self.iteration()
+
+	def handle_frontend(self):
+		package = self.recv(self.frontend)
+		# print(package)
+		if package.msg == MsgCode.PING:
+			### Means that broker is getting impatient, so reply with a PONG
+			self.pong()
+		self.say('On frontend: {}'.format(package))
+		if package.encapsulated:
+			result = self.do_work(package.msg)
+								
+			client_p = package.encapsulated
+			client_p.msg = result
+			broker_p = Package(msg = MsgCode.JOB_COMPLETE, encapsulated = client_p)
+			self.say('Sending on frontend: {}'.format(broker_p))
+			self.send(self.frontend, broker_p)
+
+	def iteration(self):
+		self.poll_sockets()
+		# self.say('sending')
+		# # self.frontend = self.context.socket(zmq.DEALER)
+		# # self.frontend.connect('tcp://localhost:5563')
+		# self.frontend.send_multipart(["", "sup"])
+
+		# print(self.sockets[self.frontend].address)
+		# sleep(1)
+		# sockets = dict(self.poller.poll())
+		# if self.frontend in sockets:
+		# 	self.handle_frontend()
+			
+	def run(self):
+		self.init_all_sockets()
+		# print(self.sockets)
+		# self.frontend.send_multipart(["", MsgCode.STATUS_READY])
+		self.broker_aliveness = self.BROKER_ALIVENESS
+		self.setup()
+		# self.reconnect_to_broker()
+		self.send_ready_msg()
+		self.loop()
+		# self.frontend.close()	
+
+
+
+
+
+	@abc.abstractmethod
+	def setup(self):
+		return
+
+	@abc.abstractmethod
+	def do_work(self, workload):
+		return
 
 
 class Auction(MJDWorker):
@@ -131,13 +279,14 @@ class Auction(MJDWorker):
 
 
 
-class DBWorker(MJDWorker):
+class DBWorker(PingPongWorker):
 
 	def setup(self):
 		### Nothing to setup
 		pass
 
 	def do_work(self, workload):
+		# print('Doing work: {}'.format(workload))
 		self.say('Doing work: {}'.format(workload))
 		return MsgCode.ORDER_STORED
 

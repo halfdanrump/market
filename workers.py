@@ -165,8 +165,8 @@ class AuthWorker(PingPongWorker):
 
 	def do_work(self, order):
 		self.say('Forwarding order to db_cluster')
-		# if self.authenticate_order(order):
-		# 	Package(msg = order).send(self.backend)
-		# 	return MsgCode.ORDER_RECEIVED
-		# else:
-		# 	return MsgCode.INVALID_ORDER
+		if self.authenticate_order(order):
+			# Package(msg = order).send(self.backend)
+			return MsgCode.ORDER_RECEIVED
+		else:
+			return MsgCode.INVALID_ORDER

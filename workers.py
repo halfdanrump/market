@@ -140,7 +140,8 @@ class DBWorker(PingPongWorker):
 
 class AuthWorker(PingPongWorker):
 	__sockets__ = [
-	Sock('frontend', zmq.DEALER, bind = False, handler = 'handle_frontend')
+	Sock('frontend', zmq.DEALER, bind = False, handler = 'handle_frontend'),
+	Sock('backend', zmq.DEALER, bind = False, handler = 'handle_backend')
 	]
 
 	# def __init__(self, name, frontend, backend_db, backend_auction, verbose = False):

@@ -330,6 +330,7 @@ class AgentProcess(Process):
 		self.context = zmq.Context()
 		self.sockets = SocketDict()
 		assert isinstance(endpoints, dict)
+		assert set(endpoints.keys()) == set(map(lambda sock: sock.name, self.__sockets__)), 'Please define a dict which defines an endpoint name for sockets {}'.format(map(lambda sock: sock.name, self.__sockets__))
 		self.endpoints = endpoints
 		# assert set(self.sockets.names()) == set(endpoints.keys()), "Argument 'endpoints' must be a dictionary with endpoint names as items for each of the keys {}".format(self.sockets.names())
 
@@ -506,58 +507,6 @@ class AgentProcess(Process):
 
 # from threading import Thread
 
-class TeztAgent(AgentProcess):
-
-	__sockets__ = [Sock('backend', zmq.DEALER, False, 'backend_handler')]
-	
-	def backend_handler(self):
-		m = self.backend.recv_multipart()
-		self.say(str(m))
-
-	def iteration(self):
-		# print('Iterate')
-		self.poll_sockets()
-		# Thread(target = self.poll_sockets).start()
-		# self.poll_sockets()
-		order = 'new order {}'.format(random())
-		package = Package(msg = order)
-		self.say('Sending on backend: {}'.format(package))
-		package.send(self.backend)
-		# print(Package.recv(self.backend))
-		sleep(1)
-
-		
-	
-
-	def setup(self):
-		pass
-
-class TeztAgentReconnect(AgentProcess):
-
-	__sockets__ = [Sock('backend', zmq.DEALER, False, 'backend_handler')]
-	
-	def backend_handler(self):
-		m = self.backend.recv_multipart()
-		# self.say(str(m))
-
-	def iteration(self):
-		# print('Iterate')
-		# self.poll_sockets()
-		# Thread(target = self.poll_sockets).start()
-		self.poll_sockets()
-		order = 'new order {}'.format(random())
-		package = Package(msg = order)
-		self.say('Sending on backend: {}'.format(package))
-		package.send(self.backend)
-		# sleep(1)
-		self.say(Package.recv(self.backend))
-		self.init_socket(self.sockets['backend'])
-		self.say('Done initializing')
-	
-	
-
-	def setup(self):
-		pass
 
 
 

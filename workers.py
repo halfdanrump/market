@@ -137,18 +137,23 @@ class DBWorker(PingPongWorker):
 # 			}
 
 
-class Auth(PingPongWorker):
-
+class AuthWorker(PingPongWorker):
+	__sockets__ = [
+	Sock('frontend', zmq.DEALER, bind = False, handler = 'handle_frontend')
+	]
 
 	# def __init__(self, name, frontend, backend_db, backend_auction, verbose = False):
 	# 	super(Auth, self).__init__(name = name, frontend = frontend, backend = backend_db, verbose = verbose)
 	# 	self.backend_auction_name = backend_auction_name
 
-	def handle_backend(self):
-		self.say('On backend: {}'.format(self.backend.recv_multipart()))
+	# def handle_backend(self):
+	# 	self.say('On backend: {}'.format(self.backend.recv_multipart()))
 
 	def setup(self):
-		self.new_socket(endpoint = self.backend_name, socket_name = 'backend', socket_type = zmq.DEALER, bind = False, handler = self.handle_backend)
+		pass
+		# self.new_socket(endpoint = self.backend_name, socket_name = 'backend', socket_type = zmq.DEALER, bind = False, handler = self.handle_backend)
+		
+
 		# self.poller.register(self.backend, zmq.POLLIN)
 		# self.backend = self.context.socket(zmq.DEALER)
 		# self.backend.connect(AddressManager.get_connect_address(self.backend_name))		
@@ -159,8 +164,8 @@ class Auth(PingPongWorker):
 
 	def do_work(self, order):
 		self.say('Forwarding order to db_cluster')
-		if self.authenticate_order(order):
-			Package(msg = order).send(self.backend)
-			return MsgCode.ORDER_RECEIVED
-		else:
-			return MsgCode.INVALID_ORDER
+		# if self.authenticate_order(order):
+		# 	Package(msg = order).send(self.backend)
+		# 	return MsgCode.ORDER_RECEIVED
+		# else:
+		# 	return MsgCode.INVALID_ORDER

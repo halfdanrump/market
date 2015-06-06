@@ -8,7 +8,7 @@ import Queue
 context = zmq.Context()
 from traders import Trader
 from brokers import JobQueueBroker
-from workers import Auth, DBWorker
+from workers import AuthWorker, DBWorker
 from time import sleep
 
 
@@ -24,7 +24,7 @@ def run_auth_cluster(n_workers, verbose = False):
 	market_broker = JobQueueBroker('market_gateway', {'frontend':'market_frontend', 'backend':'market_backend'}, verbose = verbose)
 	market_broker.start()
 	for i in xrange(n_workers): 
-		DBWorker('db_worker', {'frontend': 'market_backend'}, verbose = verbose).start()
+		AuthWorker('db_worker', {'frontend': 'market_backend'}, verbose = verbose).start()
 # for i in xrange(n_workers): Auth('authenticator', {'frontend':'market_backend', 'backend':'db_frontend'}, verbose = verbose).start()
 
 

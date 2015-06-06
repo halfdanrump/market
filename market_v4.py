@@ -23,7 +23,8 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 def run_auth_cluster(n_workers, verbose = False):
 	market_broker = JobQueueBroker('market_gateway', {'frontend':'market_frontend', 'backend':'market_backend'}, verbose = verbose)
 	market_broker.start()
-	for i in xrange(n_workers): DBWorker('db_worker', {'frontend': 'market_backend'}, verbose = verbose).start()
+	for i in xrange(n_workers): 
+		DBWorker('db_worker', {'frontend': 'market_backend'}, verbose = verbose).start()
 # for i in xrange(n_workers): Auth('authenticator', {'frontend':'market_backend', 'backend':'db_frontend'}, verbose = verbose).start()
 
 
@@ -43,7 +44,7 @@ def run_db_cluster(n_workers, verbose = False):
 
 if __name__ == '__main__':
 	# Trader(name = 'trader', endpoints = {'backend': 'market_frontend'}, verbose = True).start()	
-	TeztAgentReconnect('trader', {'backend' : 'market_frontend'}, verbose = True).start()
+	TeztAgent('trader', {'backend' : 'market_frontend'}, verbose = True).start()
 	run_auth_cluster(1, False)	
 	# run_db_cluster(1, False)
 

@@ -371,8 +371,8 @@ class AgentProcess(Process):
 
 		
 	def say(self, msg):
-		# if not (re.match('.*{}.*'.format(MsgCode.PING), str(msg)) or re.match('.*{}.*'.format(MsgCode.PONG), str(msg))):
-		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+		if not (re.match('.*{}.*'.format(MsgCode.PING), str(msg)) or re.match('.*{}.*'.format(MsgCode.PONG), str(msg))):
+			print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
 		 # or not re.match('.*{}.*'.format(MsgCode.PONG), msg):
 			
 
@@ -512,7 +512,7 @@ class TeztAgent(AgentProcess):
 	
 	def backend_handler(self):
 		m = self.backend.recv_multipart()
-		# self.say(str(m))
+		self.say(str(m))
 
 	def iteration(self):
 		# print('Iterate')
@@ -523,7 +523,8 @@ class TeztAgent(AgentProcess):
 		package = Package(msg = order)
 		self.say('Sending on backend: {}'.format(package))
 		package.send(self.backend)
-		# sleep(1)
+		# print(Package.recv(self.backend))
+		sleep(1)
 
 		
 	
@@ -549,6 +550,7 @@ class TeztAgentReconnect(AgentProcess):
 		self.say('Sending on backend: {}'.format(package))
 		package.send(self.backend)
 		# sleep(1)
+		self.say(Package.recv(self.backend))
 		self.init_socket(self.sockets['backend'])
 		self.say('Done initializing')
 	

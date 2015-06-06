@@ -74,6 +74,7 @@ class PingPongWorker(AgentProcess):
 		self.say('On frontend: {}'.format(package))
 		if package.encapsulated:
 			result = self.do_work(package.msg)
+			assert isinstance(result, str)
 								
 			client_p = package.encapsulated
 			client_p.msg = result

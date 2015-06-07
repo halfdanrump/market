@@ -1,4 +1,5 @@
 from __future__ import print_function
+import sys
 from multiprocessing import Process
 from threading import Thread, Event
 import abc
@@ -435,14 +436,23 @@ class AgentProcess(Process):
 	
 	def init_socket(self, sock):
 		self.say('INIT socket {}'.format(sock))
+		### If the zmq.Socket has been created, we first need to close it and unregister from the poller
 		if hasattr(self, sock.name):
-			getattr(self, sock.name).close()
+			zmqsock = getattr(self, sock.name)
+			zmqsock.close()
+			print('******************************')
+			print(self.poller.sockets)
+			self.poller.unregister(zmqsock)
+
 		sock.set_endpoint(self.endpoints[sock.name])
 		sock.create_socket(self.context)
-		self.say(sock.connect())
+		connect_status = sock.connect()
+		self.say(connect_status)
+
 		if self.sockets.has_key(sock.name):
 			del self.sockets[sock.name]
 		self.sockets.put(sock)
+
 		setattr(self, sock.name, sock.socket_obj)
 		self.start_socket_poll(sock.name)
 
@@ -482,16 +492,25 @@ class AgentProcess(Process):
 			self.say('No handler attached')
 
 
+	
 	def poll_sockets(self):
-		sockets = True
+		# sockets = True
 		# self.say('In poll')
-		while sockets:
-			sockets = dict(self.poller.poll(1))
-			# self.say(str(sockets))
-			for socket in self.sockets.sockets():
-				# print(self.sockets[socket].name)
-				if socket in sockets:
-					self.sockets[socket].handler()
+		sockets = dict(self.poller.poll(100))
+		# while True:
+		# 	# print(len(self.poller.sockets), self.poller.sockets)
+		# 	# try:
+			
+		# 	if sockets == []:
+		# 		break
+		# 	# except Exception:
+		# 	# 	print(sockets)
+		# 	# 	sys.exit(1)
+		# 	# self.say(str(sockets))
+		# 	# for socket in self.sockets.sockets():
+		# 	# 	# print(self.sockets[socket].name)
+		# 	# 	if socket in sockets:
+		# 	# 		self.sockets[socket].handler()
 
 	def run(self):
 		"""

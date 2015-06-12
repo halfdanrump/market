@@ -11,7 +11,7 @@ class PingPongWorker(AgentProcess):
 	__metaclass__ = abc.ABCMeta
 
 	BROKER_TIMEOUT = 1;
-	BROKER_ALIVENESS = 3 # Number of timeouts before the worker tries to reconnect to the broker
+	BROKER_ALIVENESS = 10 # Number of timeouts before the worker tries to reconnect to the broker
 
 	def ping(self, socket):
 		ping = Package(msg = MsgCode.PING)
@@ -24,7 +24,7 @@ class PingPongWorker(AgentProcess):
 	def reconnect_to_broker(self):
 		self.say('Connecting to broker...')
 		self.broker_aliveness = self.BROKER_ALIVENESS
-		self.init_socket(self.sockets['frontend'])
+		# self.init_socket(self.sockets['frontend'])
 		self.send_ready_msg()
 
 	def send_ready_msg(self):
@@ -50,6 +50,8 @@ class PingPongWorker(AgentProcess):
 	def send(self, socket, package):
 		assert isinstance(socket, zmq.Socket)
 		assert isinstance(package, Package)
+		address = self.sockets[socket].address
+		self.say('Sending to {}: {}'.format(address, package))
 		self.reset_timer()
 		package.send(socket)
 

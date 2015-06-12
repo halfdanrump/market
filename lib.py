@@ -373,8 +373,8 @@ class AgentProcess(Process):
 
 		
 	def say(self, msg):
-		if not (re.match('.*{}.*'.format(MsgCode.PING), str(msg)) or re.match('.*{}.*'.format(MsgCode.PONG), str(msg))):
-			print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
+		# if not (re.match('.*{}.*'.format(MsgCode.PING), str(msg)) or re.match('.*{}.*'.format(MsgCode.PONG), str(msg))):
+		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
 		 # or not re.match('.*{}.*'.format(MsgCode.PONG), msg):
 			
 
@@ -494,23 +494,14 @@ class AgentProcess(Process):
 
 	
 	def poll_sockets(self):
-		# sockets = True
-		# self.say('In poll')
 		sockets = dict(self.poller.poll(100))
-		# while True:
-		# 	# print(len(self.poller.sockets), self.poller.sockets)
-		# 	# try:
-			
-		# 	if sockets == []:
-		# 		break
-		# 	# except Exception:
-		# 	# 	print(sockets)
-		# 	# 	sys.exit(1)
-		# 	# self.say(str(sockets))
-		# 	# for socket in self.sockets.sockets():
-		# 	# 	# print(self.sockets[socket].name)
-		# 	# 	if socket in sockets:
-		# 	# 		self.sockets[socket].handler()
+		
+		while sockets:
+			sockets = dict(self.poller.poll(100))
+			for socket in self.sockets.sockets():
+				# print(self.sockets[socket].name)
+				if socket in sockets:
+					self.sockets[socket].handler()
 
 	def run(self):
 		"""

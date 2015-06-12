@@ -21,8 +21,8 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 
 def run_auth_cluster(n_workers, verbose = False):
-	market_broker = JobQueueBroker('market_gateway', {'frontend':'market_frontend', 'backend':'market_backend'}, verbose = verbose)
-	market_broker.start()
+	# market_broker = JobQueueBroker('market_gateway', {'frontend':'market_frontend', 'backend':'market_backend'}, verbose = verbose)
+	# market_broker.start()
 	for i in xrange(n_workers): 
 		# AuthWorker('auth_worker', {'frontend':'db_frontend', 'backend':'db_backend'}, verbose = verbose).start()
 		DBWorker('auth_worker', {'frontend':'market_backend'}, verbose = verbose).start()

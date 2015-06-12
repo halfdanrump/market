@@ -11,7 +11,7 @@ class PingPongWorker(AgentProcess):
 	__metaclass__ = abc.ABCMeta
 
 	BROKER_TIMEOUT = 1;
-	BROKER_ALIVENESS = 10 # Number of timeouts before the worker tries to reconnect to the broker
+	BROKER_ALIVENESS = 3 # Number of timeouts before the worker tries to reconnect to the broker
 
 	def ping(self, socket):
 		ping = Package(msg = MsgCode.PING)
@@ -35,6 +35,7 @@ class PingPongWorker(AgentProcess):
 		self.broker_aliveness -= 1
 		# self.say('aliveness: {}'.format(self.broker_aliveness))
 		if self.broker_aliveness == 0:
+			print('ASDHASODIJ')
 			# self.broker_aliveness = self.BROKER_ALIVENESS
 			self.reconnect_to_broker()
 			self.loop()

@@ -465,6 +465,8 @@ class AgentProcess(Process):
 		if hasattr(self, sock.name):
 			zmqsock = getattr(self, sock.name)
 			self.poller.unregister(zmqsock)
+			zmqsock.setsockopt(zmq.LINGER, 0)
+			zmqsock.close()
 			# print('ASIDJAOSIDJOIA')
 			# print(self.poller.sockets)
 			# print('BABABA')

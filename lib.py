@@ -439,10 +439,12 @@ class AgentProcess(Process):
 		### If the zmq.Socket has been created, we first need to close it and unregister from the poller
 		if hasattr(self, sock.name):
 			zmqsock = getattr(self, sock.name)
+			self.poller.unregister(zmqsock)
 			zmqsock.close()
+			# sleep(1)
 			print('******************************')
 			print(self.poller.sockets)
-			self.poller.unregister(zmqsock)
+			
 
 		sock.set_endpoint(self.endpoints[sock.name])
 		sock.create_socket(self.context)
@@ -454,6 +456,34 @@ class AgentProcess(Process):
 		self.sockets.put(sock)
 
 		setattr(self, sock.name, sock.socket_obj)
+		self.start_socket_poll(sock.name)
+
+	def reinit_socket(self, sock):
+		self.say('INIT socket {}'.format(sock))
+		### If the zmq.Socket has been created, we first need to close it and unregister from the poller
+		# return
+		if hasattr(self, sock.name):
+			zmqsock = getattr(self, sock.name)
+			self.poller.unregister(zmqsock)
+			# print('ASIDJAOSIDJOIA')
+			# print(self.poller.sockets)
+			# print('BABABA')
+			# zmqsock.close()
+			# print('JAJAJA')
+			# sleep(1)
+			
+
+		# sock.set_endpoint(self.endpoints[sock.name])
+		# sock.create_socket(self.context)
+		connect_status = sock.connect()
+		# self.say(connect_status)
+
+		# if self.sockets.has_key(sock.name):
+		# 	del self.sockets[sock.name]
+		# self.sockets.put(sock)
+		# print(self.sockets)
+
+		# setattr(self, sock.name, sock.socket_obj)
 		self.start_socket_poll(sock.name)
 
 	def init_all_sockets(self):
@@ -494,14 +524,17 @@ class AgentProcess(Process):
 
 	
 	def poll_sockets(self):
-		sockets = dict(self.poller.poll(100))
+		print('Polling. {}'.format(self.poller.sockets))
 		
-		while sockets:
-			sockets = dict(self.poller.poll(100))
-			for socket in self.sockets.sockets():
-				# print(self.sockets[socket].name)
-				if socket in sockets:
-					self.sockets[socket].handler()
+		sockets = dict(self.poller.poll(1000))
+		
+		# while sockets:
+			
+		# 	for socket in self.sockets.sockets():
+		# 		# print(self.sockets[socket].name)
+		# 		if socket in sockets:
+		# 			self.sockets[socket].handler()
+		# 	sockets = dict(self.poller.poll(100))
 
 	def run(self):
 		"""

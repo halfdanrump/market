@@ -24,7 +24,7 @@ class PingPongWorker(AgentProcess):
 	def reconnect_to_broker(self):
 		self.say('Connecting to broker...')
 		self.broker_aliveness = self.BROKER_ALIVENESS
-		# self.init_socket(self.sockets['frontend'])
+		self.reinit_socket(self.sockets['frontend'])
 		self.send_ready_msg()
 
 	def send_ready_msg(self):

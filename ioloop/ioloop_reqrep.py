@@ -2,54 +2,56 @@ import zmq
 from zmq.eventloop import ioloop, zmqstream
 from time import sleep
 from multiprocessing import Process
+import abc
+from datetime import datetime
+from logging import Logger
 
 
-
-def server():
-	# ioloop.install()
-	context = zmq.Context()
-	def handle_socket(msg):
-		address, m = msg[0], msg[2]
-		print('In server: {}'.format(m))
-		socket.send_multipart([address, '', 'REQUEST OK'])
-	
-	socket = context.socket(zmq.ROUTER)
-	socket.bind('tcp://*:6000')
-	stream_pull = zmqstream.ZMQStream(socket)
-	stream_pull.on_recv(handle_socket)
-	loop = ioloop.IOLoop.instance()
-	loop.start()
-
-
-def client():
-	# ioloop.install()
-	context = zmq.Context()
-	def handle_socket(msg):
-		print('In client: {}'.format(msg))
-		socket.send_multipart(["", 'NEW REQUEST'])
-	
-	socket = context.socket(zmq.DEALER)
-	socket.connect('tcp://localhost:6000')
-	stream_pull = zmqstream.ZMQStream(socket)
-	stream_pull.on_recv(handle_socket)
-	socket.send_multipart(["", 'NEW REQUEST'])
-	ioloop.IOLoop.instance().start()
-
-if __name__ == '__main__':
-	Process(target = server).start()
-	Process(target = client).start()
-
-class AgentProcess(Process):
+class Agent(Process):
 
 	__metaclass__ = abc.ABCMeta
 
 	def __init__(self, name):
 		Process.__init__(self)		
 		self.context = zmq.Context()
+		self.loop = ioloop.IOLoop.instance()
 		
+	def run(self):
+		self.say('Setting up agent...')
+		self.setup()
+		self.say('Starting ioloop...')
+		self.loop.start()
 		
 	def say(self, msg):
-		# if not (re.match('.*{}.*'.format(MsgCode.PING), str(msg)) or re.match('.*{}.*'.format(MsgCode.PONG), str(msg))):
 		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
-		 # or not re.match('.*{}.*'.format(MsgCode.PONG), msg):
-			
+
+class Server(Agent):
+	def handle_socket(self, msg):
+		address, m = msg[0], msg[2]
+		self.say(m)
+		self.socket.send_multipart([address, '', 'REQUEST OK'])
+	
+	def setup(self):
+		self.socket = self.context.socket(zmq.ROUTER)
+		self.socket.bind('tcp://*:6000')
+		stream_pull = zmqstream.ZMQStream(self.socket)
+		stream_pull.on_recv(self.handle_socket)
+
+
+class Client(Agent):
+	
+	def handle_socket(self, msg):
+		self.say(msg)
+		self.socket.send_multipart(["", 'NEW REQUEST'])
+	
+	def setup(self):
+		self.socket = self.context.socket(zmq.DEALER)
+		self.socket.connect('tcp://localhost:6000')
+		stream_pull = zmqstream.ZMQStream(self.socket)
+		stream_pull.on_recv(self.handle_socket)
+		self.socket.send_multipart(["", 'NEW REQUEST'])
+
+if __name__ == '__main__':
+	Server(name = 'server').start()
+	Client(name = 'client').start()
+

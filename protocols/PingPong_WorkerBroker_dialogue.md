@@ -57,8 +57,6 @@ If the worker has received no messages (PONG or jobs)for N_TIMEOUTS consecutive 
 
 <!-- * Kill worker; send [worker_id, "", EXIT]; broker removes worker from queue and sends exit message.  -->
 
-
-
 ## Notes
 * The dialog between worker and broker is **asynchronous**.
 * When the broker send EXIT to a worker, the worker does not send an acknowledgement. Hence the broker does not contain state infomation about the worker.

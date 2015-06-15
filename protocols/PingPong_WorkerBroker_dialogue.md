@@ -1,16 +1,16 @@
 Ping Pong dialogue between a worker process and a broker process. 
 
 ## Sockets
-* worker.frontend (DEALER) <-----> broker.backend (ROUTER)
+Worker.frontend (DEALER) <-----> Broker.backend (ROUTER)
 
 ## Constants
 
-* BROKER_TIMEOUT: 
-* N_TIMEOUTS:
+* BROKER_TIMEOUT: The timeout for expected PONG messages
+* N_TIMEOUTS: The worker will reconnect the socket after N_TIMEOUTS timeouts.
 * WOKER_EXPIRE_SEONDS:
 
 
-## Message flows
+## Dialogues
 
 Worker  (1) READY--->      (2)    Broker
 
@@ -19,10 +19,7 @@ Worker  (4)     <---PONG   (3)    Broker
 
 Worker  (1)     <---job    (2)    Broker<br/>
 Worker  (4) result--->     (3)    Broker
-
 <!-- Worker       <---EXIT    Broker -->
-
-## Dialogues
 
 ### Worker is ready
 1) Worker ready; worker send ["", READY]; The worker process sends ["", READY] when it is ready. 

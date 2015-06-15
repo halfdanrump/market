@@ -1,4 +1,4 @@
-PING/PONG dialogue between a worker process and a broker process. 
+#PING/PONG dialogue between a worker and a broker
 
 This document specifies the interaction between a PingPongWorker and a PingPongBroker. 
 

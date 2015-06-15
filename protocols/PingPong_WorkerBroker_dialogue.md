@@ -19,7 +19,7 @@ Ping Pong dialogue between a worker process and a broker process.
 
 Worker READY  --->          Broker
 
-Worker PING   --->          Broker
+Worker PING   --->          Broker<br/>
 Worker        <---  PONG    Broker
 
 Worker        <---  job     Broker

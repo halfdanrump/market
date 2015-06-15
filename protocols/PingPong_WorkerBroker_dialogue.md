@@ -12,13 +12,13 @@ Ping Pong dialogue between a worker process and a broker process.
 
 ## Message flows
 
-Worker   READY--->       Broker
+Worker  (1) READY--->      (2)    Broker
 
-Worker    PING--->       Broker<br/>
-Worker       <---PONG    Broker
+Worker  (1) PING--->       (2)    Broker<br/>
+Worker  (4)     <---PONG   (3)    Broker
 
-Worker       <---job     Broker<br/>
-Worker  result--->       Broker
+Worker  (1)     <---job    (2)    Broker<br/>
+Worker  (4) result--->     (3)    Broker
 
 <!-- Worker       <---EXIT    Broker -->
 
@@ -26,8 +26,9 @@ Worker  result--->       Broker
 
 ### Worker is ready
 1) Worker ready; worker send ["", READY]; The worker process sends ["", READY] when it is ready. 
-2) Broker recv [worker_id, "", READY]; register worker; when broker receives READY on BACKEND it adds worker to queue and immediately sends PONG.
-3) Worker recv ["", PONG]; worker updates broker aliveness; when the worker gets a pong from the broker it knows that the broker is alive and keep the connetion open.
+2) Broker recv [worker_id, "", READY]; register worker; when broker receives READY on BACKEND it adds worker to queue
+3) Broker sends PONG; send [worker_id, "", PONG]; immediately after receiving PING broker sends PONG.
+4) Worker recv ["", PONG]; worker updates broker aliveness; when the worker gets a pong from the broker it knows that the broker is alive and keep the connetion open.
 
 ### Worker sends PING
 1) Worker heartbeat; send ["", PING]; Every second, the worker sends a ["", PING] to let the broker know that it's alive. 
@@ -35,15 +36,16 @@ Worker  result--->       Broker
 
 ### Broker assign job to worker
 1) Assign job; broker send [worker_id, "", job]; broker pops worker from queue and sends the job.
-2) Worker recieve job; recv ["", job]; When the worker receives a message that is not ["", PONG] or ["", EXIT] it will assume that the message is a job task and process the job.   
+2) Worker recieve job; recv ["", job]; When the worker receives a message that is not ["", PONG] it will assume that the message is a job task and process the job.   
 3) Send result; worker send ["", result]; when the worker has finished the tasks it sends the result back to the broker.
+4) Broker gets result; recv [worker_id, "", result]; Broker forwards result to client and adds worker to ready queue 
 
 ## Aliveness events
 ### Broker timeout
 If the worker has received no messages (PONG or jobs)for N_TIMEOUTS consecutive periods of BROKER_TIMEOUT the worker will close, re-initialize frontend and then send ["", READY].
 
 ### Worker timeout
-* Timeout worker: When the broker has not received any messages from a worker for WORKER_EXPIRE_SECONDS it removes the worker from the ready queue.
+* Timeout worker: When the broker has not received any messages from a worker in the ready queue for WORKER_EXPIRE_SECONDS it removes the worker from the ready queue.
 * Update worker expiration: When the broker receives any message from a worker it updates the timeout the worker to current time plus WORKER_EXPIRE_SECONDS
 
 <!-- * Worker exit; recv ["", EXIT]; If the worker receives exit message it will exit the process.  -->
@@ -59,5 +61,6 @@ If the worker has received no messages (PONG or jobs)for N_TIMEOUTS consecutive 
 
 ## Notes
 * The dialog between worker and broker is **asynchronous**.
-* When the broker send EXIT to a worker, the worker does not send an acknowledgement. Hence the broker does not contain state infomation about the worker.
+<!-- When the broker send EXIT to a worker, the worker does not send an acknowledgement. Hence the broker does not contain state infomation about the worker. -->
 * While the worker is working, it does not send out PONG messages. 
+* In this specification there is no mechanism for dealing with workers that crash while working and thus never returns a result (resending jobs after a timeout period is not very difficult though).

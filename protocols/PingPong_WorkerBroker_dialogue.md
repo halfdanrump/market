@@ -28,12 +28,12 @@ Worker  (4) result--->     (3)    Broker
 ### Worker is ready
 1. Worker ready; worker send ["", READY]; The worker process sends ["", READY] when it is ready. 
 2. Broker recv [worker_id, "", READY]; register worker; when broker receives READY on BACKEND it adds worker to queue
-3. Broker sends PONG; send [worker_id, "", PONG]; immediately after receiving PING broker sends PONG.
-4. Worker recv ["", PONG]; worker updates broker aliveness; when the worker gets a pong from the broker it knows that the broker is alive and keep the connetion open.
 
 ### Worker sends PING
 1. Worker heartbeat; send ["", PING]; Every second, the worker sends a ["", PING] to let the broker know that it's alive. 
 2. Broker recv PING; send ["", PONG]; When the broker receives a PING on backend it immediately responds with a PONG. If worker_id is not in the ready queue, worker_id is added to the ready queue.
+3. Broker sends PONG; send [worker_id, "", PONG]; immediately after receiving PING broker sends PONG.
+4. Worker recv ["", PONG]; worker updates broker aliveness; when the worker gets a pong from the broker it knows that the broker is alive and keep the connetion open.
 
 ### Broker assign job to worker
 1. Assign job; broker send [worker_id, "", job]; broker pops worker from queue and sends the job.

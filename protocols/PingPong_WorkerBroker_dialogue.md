@@ -1,6 +1,10 @@
-Ping Pong dialogue between a worker process and a broker process. 
+PING/PONG dialogue between a worker process and a broker process. 
+
+This document specifies the interaction between a PingPongWorker and a PingPongBroker. 
 
 ## Sockets
+Worker has a DEALER socket called frontend. Broker has a ROUTER socket called backend. Broker also has a ROUTER socket called frontend for accepting requests from clients. The interaction between client and broker is not described here. 
+
 Worker.frontend (DEALER) <-----> Broker.backend (ROUTER)
 
 ## Constants

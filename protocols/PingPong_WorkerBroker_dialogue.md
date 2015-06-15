@@ -11,7 +11,7 @@ Worker.frontend (DEALER) <-----> Broker.backend (ROUTER)
 
 * BROKER_TIMEOUT: The timeout for expected PONG messages
 * N_TIMEOUTS: The worker will reconnect the socket after N_TIMEOUTS timeouts.
-* WOKER_EXPIRE_SEONDS:
+* WORKER_EXPIRE_SEONDS: The time that the broker waits for a PING from the worker before it considers the worker dead.
 
 
 ## Dialogues

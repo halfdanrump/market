@@ -22,7 +22,7 @@ Worker READY  --->          Broker
 Worker PING   --->          Broker<br/>
 Worker        <---  PONG    Broker
 
-Worker        <---  job     Broker
+Worker        <---  job     Broker<br/>
 Worker result --->          Broker
 
 Worker        <---  EXIT    Broker

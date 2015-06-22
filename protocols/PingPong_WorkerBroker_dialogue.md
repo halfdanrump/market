@@ -1,6 +1,9 @@
 #PING/PONG dialogue between a worker and a broker
 
-This document specifies the interaction between a PingPongWorker and a PingPongBroker. 
+This document specifies the interaction between a PingPongWorker and a PingPongBroker. The role of the broker is
+1. Keep a list of idle workers
+2. Accept jobs from clients and forward them to the workers. 
+The PING/PONG dialogue is a way for the broker to know which workers are responsive, and for the workers to know if the broker is responsive. If a worker sends a PING and doesn't get a PONG, it will assume that the broker process has died and reconnect to the broker after a while. Similarly, if a worker doesn't send any PINGs for a while, the broker will no longer send jobs to that worker. 
 
 ## Sockets
 Worker has a DEALER socket called frontend. Broker has a ROUTER socket called backend. Broker also has a ROUTER socket called frontend for accepting requests from clients. The interaction between client and broker is not described here. 

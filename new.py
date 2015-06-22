@@ -37,8 +37,8 @@ class Agent(Process):
 		print(address)
 		stream = zmqstream.ZMQStream(socket)
 		stream.on_recv(handler)	
-		setattr(self, name + '_stream', stream)
-		setattr(self, name + '_socket', socket)
+		# setattr(self, name + '_stream', stream)
+		# setattr(self, name + '_socket', socket)
 		return stream, socket
 		
 

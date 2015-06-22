@@ -3,7 +3,7 @@ from zmq.eventloop import ioloop, zmqstream
 from multiprocessing import Process
 import abc
 from datetime import datetime
-from lib import AddressManager
+from lib import AddressManager, MsgCode
 
 
 class Agent(Process):
@@ -21,7 +21,12 @@ class Agent(Process):
 		return self.endpoints[name]
 
 	def stream(self, name, socket_type, bind, handler):
+		# if hasattr(self, name + '_stream'): 
+			# del eval(getattr(self, name + '_stream'))
+		# if hasattr(self, name + '_socket'): 
+		# 	del getattr(self, name + '_socket')
 		socket = self.context.socket(socket_type)
+		# print(socket)
 		endpoint = self.get_endpoint(name)
 		if bind: 
 			address = AddressManager.get_bind_address(endpoint)
@@ -32,7 +37,8 @@ class Agent(Process):
 		print(address)
 		stream = zmqstream.ZMQStream(socket)
 		stream.on_recv(handler)	
-		# setattr(self, name, stream)
+		setattr(self, name + '_stream', stream)
+		setattr(self, name + '_socket', socket)
 		return stream, socket
 		
 
@@ -59,11 +65,6 @@ class Server(Agent):
 	
 	def setup(self):
 		self.stream, self.socket = self.stream('backend', zmq.ROUTER, True, self.handle_socket)
-		# self.socket = self.context.socket(zmq.ROUTER)
-		# self.socket.bind('tcp://*:5562')
-		# stream_pull = zmqstream.ZMQStream(self.socket)
-		# stream_pull.on_recv(self.handle_socket)
-
 
 
 from time import sleep
@@ -78,9 +79,12 @@ class Client(Agent):
 
 	def reconnect(self):
 		self.say('Reconnecting...')
-		sleep(2)
-		self.stream.flush()
-		self.stream.close()
+		# self.stream.flush()
+		# self.stream.close()
+		# self.socket.close()
+		# sleep(3)
+		del self.stream
+		del self.socket
 		self.setup()
 	
 	def setup(self):
@@ -102,8 +106,8 @@ class PingPongBroker(Agent):
 	# ]
 
 	def setup(self):
-		self.stream('frontend', zmq.ROUTER, True, self.handle_client_msg)
-		self.stream('backend', zmq.ROUTER, True, self.handle_worker_msg)
+		# self.stream('frontend', zmq.ROUTER, True, self.handle_client_msg)
+		self.backend_stream, self.backend_socket = self.stream('backend', zmq.ROUTER, True, self.handle_worker_msg)
 		self.workers = heapdict()
 		
 	def expire_workers(self):
@@ -126,29 +130,14 @@ class PingPongBroker(Agent):
 		if self.workers.has_key(worker_addr):
 			del self.workers[worker_addr]
 
-	def recv_from_worker(self):
-		package = Package.recv(self.backend)
-		self.say('On backend: {}'.format(package))
-		worker = package.sender_addr
-		if package.msg == MsgCode.DISCONNECT:
-			self.remove_worker(worker)
-		else:
-			self.add_worker(worker)
-			# Send PONG to worker
-			Package(dest_addr = worker, msg = MsgCode.PONG).send(self.backend)
-		self.handle_backend(package)
+	def handle_worker_msg(self, msg):
+		worker_addr, payload = msg[0], msg[2]
+		self.say('On backend: {}'.format(payload))
+		self.add_worker(worker_addr)
+		self.backend_socket.send_multipart([worker_addr, "", MsgCode.PONG])
+		
+		
 	
-	@abc.abstractmethod
-	def handle_frontend(self):
-		return
-
-	@abc.abstractmethod
-	def handle_backend(self, package):
-		return
-
-
-
-
 class JobQueueBroker(PingPongBroker):
 
 

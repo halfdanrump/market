@@ -4,7 +4,7 @@ from multiprocessing import Process
 import abc
 from datetime import datetime
 from lib import AddressManager, MsgCode
-
+from random import random
 
 class Agent(Process):
 
@@ -34,13 +34,16 @@ class Agent(Process):
 		else:
 			address = AddressManager.get_connect_address(endpoint)
 			socket.connect(address)
-		print(address)
 		stream = zmqstream.ZMQStream(socket)
 		stream.on_recv(handler)	
 		# setattr(self, name + '_stream', stream)
 		# setattr(self, name + '_socket', socket)
 		return stream, socket
-		
+	
+	def simulate_crash(self, probability = 0.1):
+		if random() < probability: 
+			self.say('I am busy')
+			sleep(5)
 
 	def run(self):
 		self.say('Setting up agent...')
@@ -133,8 +136,92 @@ class PingPongBroker(Agent):
 	def handle_worker_msg(self, msg):
 		worker_addr, payload = msg[0], msg[2]
 		self.say('On backend: {}'.format(payload))
+		self.simulate_crash()
 		self.add_worker(worker_addr)
 		self.backend_socket.send_multipart([worker_addr, "", MsgCode.PONG])
+
+class PingPongWorker(Agent):
+	i = 0
+
+	BROKER_ALIVENESS = 3
+	BROKER_TIMEOUT_MSEC = 1000
+	WAIT_TO_RECCONECT_MSEC = 1000
+
+	def handle_broker_msg(self, msg):
+		self.say("{} ,".format(self.i) + "".join(msg))
+		self.i += 1
+		task = msg[1]
+		self.reset_aliveness()
+		self.update_broker_timeout()
+
+		if not task == MsgCode.PONG:
+			result = self.do_work(task)
+			self.socket.send_multipart(["", result])
+			self.broker_timer.start()
+
+	def update_broker_timeout(self):
+		self._broker_timeout = datetime.now() + timedelta(seconds = self.BROKER_TIMEOUT_MSEC / 1000.0)
+
+	# def timed_ping(self):
+	# 	if self._pong_received:
+	# 		self.socket.send_multipart(["", MsgCode.PING])
+	# 		self._pong_received = False
+	# 		self.broker_timer = ioloop.DelayedCallback(self.decrement_aliveness, self.BROKER_TIMEOUT_MSEC, self.loop)
+	# 		self.broker_timer.start()
+
+	def timed_ping(self):
+		if datetime.now() > self._broker_timeout:
+			self._broker_aliveness -= 1
+		if self._broker_aliveness == 1:
+			self.reconnect()
+		else:
+			self.socket.send_multipart(["", MsgCode.PING])
+			self.broker_timer = ioloop.DelayedCallback(self.timed_ping, self.BROKER_TIMEOUT_MSEC, self.loop)
+			self.broker_timer.start()
+
+	def reset_aliveness(self):
+		self._broker_aliveness = self.BROKER_ALIVENESS
+
+	def reconnect(self):
+		self.say('Reconnecting...')
+		# self.stream.flush()
+		# self.stream.close()
+		# self.socket.close()
+		# sleep(3)
+		del self.stream
+		del self.socket
+		self.setup()
+
+	# def reset_timer(self):
+	# 	print('reset timer')
+	# 	if hasattr(self, 'broker_timer'):
+	# 		self.broker_timer.stop()
+	# 	self.broker_timer = ioloop.DelayedCallback(self.decrement_aliveness, self.BROKER_TIMEOUT_MSEC, self.loop)
+	# 	self.broker_timer.start()
+
+	# def update_aliveness(self):
+	# 	self.broker_aliveness -= 1
+	# 	self.broker_timer = ioloop.DelayedCallback(self.decrement_aliveness, self.BROKER_TIMEOUT_MSEC, self.loop)
+	# 	self.broker_timer.start()
+	# 	if self.broker_aliveness == 0:
+	# 		self.reconnect()
+	# 	else:
+	# 		self.ping(self.frontend)
+	
+
+	def do_work(self, task):
+		return 'OK, work done'
+
+	
+	def setup(self):
+		self.reset_aliveness()
+		self.stream, self.socket = self.stream('frontend', zmq.DEALER, False, self.handle_broker_msg)
+		self.socket.send_multipart(["", MsgCode.STATUS_READY])
+		self.update_broker_timeout()
+		ioloop.DelayedCallback(self.timed_ping, self.BROKER_TIMEOUT_MSEC, self.loop).start()
+
+
+
 		
 		
 	
@@ -177,6 +264,6 @@ AddressManager.register_endpoint('market_frontend', 'tcp', 'localhost', 5562)
 AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 if __name__ == '__main__':
-	Server(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
-	Client(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
+	PingPongBroker(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
+	PingPongWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 

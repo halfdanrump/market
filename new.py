@@ -21,10 +21,7 @@ class Agent(Process):
 		return self.endpoints[name]
 
 	def stream(self, name, socket_type, bind, handler):
-		# if hasattr(self, name + '_stream'): 
-			# del eval(getattr(self, name + '_stream'))
-		# if hasattr(self, name + '_socket'): 
-		# 	del getattr(self, name + '_socket')
+		""" create a new stream """
 		socket = self.context.socket(socket_type)
 		# print(socket)
 		endpoint = self.get_endpoint(name)
@@ -40,12 +37,20 @@ class Agent(Process):
 		# setattr(self, name + '_socket', socket)
 		return stream, socket
 	
-	def simulate_crash(self, probability = 0.1):
+	def simulate_overload(self, probability = 0.1):
+		""" Simulate CPU overload by sleeping for some time. """
 		if random() < probability: 
 			self.say('I am busy')
 			sleep(5)
 
+	def simulate_crash(self, probability = 0.1):
+		""" Simulate crash forcing IndexError"""
+		if random() < probability: 
+			l = list()
+			l[0]
+
 	def run(self):
+		""" overrides Process.run(). This will be called when start() is called """
 		self.say('Setting up agent...')
 		self.setup()
 		self.say('Starting ioloop...')
@@ -56,6 +61,7 @@ class Agent(Process):
 
 	@abc.abstractmethod
 	def setup(self):
+		""" Will usually be run a single time when the process is started. Should be used to create sockets, bind handlers, create instance variables and so on. """
 		return
 		
 	
@@ -64,9 +70,17 @@ class Server(Agent):
 	def handle_socket(self, msg):
 		address, m = msg[0], msg[2]
 		self.say(m)
-		self.socket.send_multipart([address, '', 'REQUEST OK'])
-	
+		timer = ioloop.DelayedCallback(lambda: self.send_reply(address), 1000)
+		self.workers[address] = (timer, m)
+		timer.start()
+		# self.socket.send_multipart([address, '', 'REQUEST OK'])
+
+	def send_reply(self, address):
+		reply = self.workers.get(address)[1]
+		self.socket.send_multipart([address, '', '******' + reply])
+
 	def setup(self):
+		self.workers = {}
 		self.stream, self.socket = self.stream('backend', zmq.ROUTER, True, self.handle_socket)
 
 
@@ -78,7 +92,7 @@ class Client(Agent):
 	def handle_socket(self, msg):
 		self.say("{} ,".format(self.i) + "".join(msg))
 		self.i += 1
-		self.socket.send_multipart(["", 'NEW REQUEST'])
+		self.socket.send_multipart(["", 'NEW REQUEST FROM WORKER %s'%self.name])
 
 	def reconnect(self):
 		self.say('Reconnecting...')
@@ -91,9 +105,9 @@ class Client(Agent):
 		self.setup()
 	
 	def setup(self):
-		ioloop.DelayedCallback(self.reconnect, 3000, self.loop).start()
+		ioloop.DelayedCallback(self.reconnect, 30000, self.loop).start()
 		self.stream, self.socket = self.stream('frontend', zmq.DEALER, False, self.handle_socket)
-		self.socket.send_multipart(["", 'NEW REQUEST'])
+		self.socket.send_multipart(["", 'READY %s'%self.name])
 
 
 
@@ -103,13 +117,7 @@ from heapdict import heapdict
 class PingPongBroker(Agent):
 	WORKER_EXPIRE_SECONDS = 3
 
-	# __sockets__ = [
-	# Sock('frontend', zmq.ROUTER, bind = True, handler = 'handle_frontend'),
-	# Sock('backend', zmq.ROUTER, bind = True, handler = 'recv_from_worker')
-	# ]
-
 	def setup(self):
-		# self.stream('frontend', zmq.ROUTER, True, self.handle_client_msg)
 		self.backend_stream, self.backend_socket = self.stream('backend', zmq.ROUTER, True, self.handle_worker_msg)
 		self.workers = heapdict()
 		
@@ -121,6 +129,9 @@ class PingPongBroker(Agent):
 				self.workers.popitem()
 
 	def add_worker(self, worker_addr):
+		"""
+		Store the worker address in the queue of ready workers
+		"""
 		expires = datetime.now() + timedelta(seconds = self.WORKER_EXPIRE_SECONDS)
 		self.workers[worker_addr] = expires
 
@@ -136,16 +147,20 @@ class PingPongBroker(Agent):
 	def handle_worker_msg(self, msg):
 		worker_addr, payload = msg[0], msg[2]
 		self.say('On backend: {}'.format(payload))
-		self.simulate_crash()
+		self.simulate_overload()
 		self.add_worker(worker_addr)
 		self.backend_socket.send_multipart([worker_addr, "", MsgCode.PONG])
 
 class PingPongWorker(Agent):
+	"""
+	Worker classed that is used with PingPongBroker. The worker and broker keep a PING/PONG dialogue
+	to stay informed of whether the other party is still alive.
+	"""
+
 	i = 0
 
-	BROKER_ALIVENESS = 3
-	BROKER_TIMEOUT_MSEC = 1000
-	WAIT_TO_RECCONECT_MSEC = 1000
+	PING_RETRIES = 3 ### How many times the worker will send out a PING and wait for a PONG
+	BROKER_TIMEOUT_SECONDS = 1 
 
 	def handle_broker_msg(self, msg):
 		self.say("{} ,".format(self.i) + "".join(msg))
@@ -156,105 +171,135 @@ class PingPongWorker(Agent):
 
 		if not task == MsgCode.PONG:
 			result = self.do_work(task)
-			self.socket.send_multipart(["", result])
+			self.stream.send_multipart(["", result])
 			self.broker_timer.start()
 
 	def update_broker_timeout(self):
-		self._broker_timeout = datetime.now() + timedelta(seconds = self.BROKER_TIMEOUT_MSEC / 1000.0)
-
-	# def timed_ping(self):
-	# 	if self._pong_received:
-	# 		self.socket.send_multipart(["", MsgCode.PING])
-	# 		self._pong_received = False
-	# 		self.broker_timer = ioloop.DelayedCallback(self.decrement_aliveness, self.BROKER_TIMEOUT_MSEC, self.loop)
-	# 		self.broker_timer.start()
+		self._broker_timeout = datetime.now() + timedelta(seconds = self.BROKER_TIMEOUT_SECONDS)
 
 	def timed_ping(self):
+		"""
+		This method is called ev
+		"""
 		if datetime.now() > self._broker_timeout:
 			self._broker_aliveness -= 1
 		if self._broker_aliveness == 1:
 			self.reconnect()
 		else:
-			self.socket.send_multipart(["", MsgCode.PING])
-			self.broker_timer = ioloop.DelayedCallback(self.timed_ping, self.BROKER_TIMEOUT_MSEC, self.loop)
+			self.stream.send_multipart(["", MsgCode.PING])
+			self.broker_timer = ioloop.DelayedCallback(self.timed_ping, self.BROKER_TIMEOUT_SECONDS * 1000, self.loop)
 			self.broker_timer.start()
 
 	def reset_aliveness(self):
-		self._broker_aliveness = self.BROKER_ALIVENESS
+		self._broker_aliveness = self.PING_RETRIES
 
 	def reconnect(self):
 		self.say('Reconnecting...')
-		# self.stream.flush()
-		# self.stream.close()
-		# self.socket.close()
-		# sleep(3)
+		self.stream.flush()
+		self.stream.close()
 		del self.stream
-		del self.socket
 		self.setup()
-
-	# def reset_timer(self):
-	# 	print('reset timer')
-	# 	if hasattr(self, 'broker_timer'):
-	# 		self.broker_timer.stop()
-	# 	self.broker_timer = ioloop.DelayedCallback(self.decrement_aliveness, self.BROKER_TIMEOUT_MSEC, self.loop)
-	# 	self.broker_timer.start()
-
-	# def update_aliveness(self):
-	# 	self.broker_aliveness -= 1
-	# 	self.broker_timer = ioloop.DelayedCallback(self.decrement_aliveness, self.BROKER_TIMEOUT_MSEC, self.loop)
-	# 	self.broker_timer.start()
-	# 	if self.broker_aliveness == 0:
-	# 		self.reconnect()
-	# 	else:
-	# 		self.ping(self.frontend)
 	
-
 	def do_work(self, task):
+		self.simulate_overload()
 		return 'OK, work done'
 
 	
 	def setup(self):
 		self.reset_aliveness()
-		self.stream, self.socket = self.stream('frontend', zmq.DEALER, False, self.handle_broker_msg)
-		self.socket.send_multipart(["", MsgCode.STATUS_READY])
+		self.stream,s = self.stream('frontend', zmq.DEALER, False, self.handle_broker_msg)
+		self.stream.send_multipart(["", MsgCode.STATUS_READY])
 		self.update_broker_timeout()
-		ioloop.DelayedCallback(self.timed_ping, self.BROKER_TIMEOUT_MSEC, self.loop).start()
+		ioloop.DelayedCallback(self.timed_ping, self.BROKER_TIMEOUT_SECONDS, self.loop).start()
+
+
+from transitions import Machine
 
 
 
+class PPWorker(Agent):
+	
+
+	
+
+	
+	def event_timer_exp(self):
+		pass
+
+
+	def event_frontend_msg(self):
+		pass
+
+	def action_start_timer(self):
+		self.timer = ioloop.DelayedCallback(self.event_timer_exp, 1000, self.loop).start()
+
+	def action_stop_timer(self):
+		self.timer.stop()
+
+	def action_reset_timer(self):
+		self.action_stop_timer()
+		self.action_start_timer()
+
+	def action_connect_frontend(self):
+		self.stream,s = self.stream('frontend', zmq.DEALER, False, self.event_frontend_msg)
+
+	def action_reconnect(self):
+		self.stream.close()
+		del self.stream
+		self.action_connect_frontend()
+
+	def action_do_work(self, task):
+		return 'Work done: %s'%task
+
+	def action_send_ping(self):
+		self.frontend.send_multipart(['', MsgCode.PING])
+
+	def action_send_ready(self):
+		self.frontend.send_multipart(['', MsgCode.STATUS_READY])
+
+	
+	
+
+
+
+	# def recv_jon(self, msg):
+
+	def broker_expired(self):
+		if self.broker_aliveness <= 0: return True
+		else: return False
 		
 		
 	
-class JobQueueBroker(PingPongBroker):
+# class JobQueueBroker(PingPongBroker):
 
 
 	
-	def setup(self):
-		super(JobQueueBroker, self).setup()
-		self.jobs = DQueue(item_type = Job)
-		self.jobs_received = 0
+# 	def setup(self):
+# 		super(JobQueueBroker, self).setup()
+# 		self.jobs = DQueue(item_type = Job)
+# 		self.jobs_received = 0
 
-	def send_job(self):
-		worker_addr = self.workers.popitem()[0]
-		job = self.jobs.get()
-		client_p = Package(dest_addr = job.client)
-		package = Package(dest_addr = worker_addr, msg = job.work, encapsulated = client_p)
-		self.say('sending on backend: {}'.format(package))
-		package.send(self.backend)
+# 	def send_job(self):
+# 		worker_addr = self.workers.popitem()[0]
+# 		job = self.jobs.get()
+# 		client_p = Package(dest_addr = job.client)
+# 		package = Package(dest_addr = worker_addr, msg = job.work, encapsulated = client_p)
+# 		self.say('sending on backend: {}'.format(package))
+# 		package.send(self.backend)
 
-	def handle_frontend(self):
-		package = Package.recv(self.frontend)
-		self.say('On frontend: {}'.format(package))
-		job = Job(client=package.sender_addr, work=package.msg)
-		self.jobs_received += 1
-		self.jobs.put(job)
+# 	def handle_frontend(self):
+# 		package = Package.recv(self.frontend)
+# 		self.say('On frontend: {}'.format(package))
+# 		job = Job(client=package.sender_addr, work=package.msg)
+# 		self.jobs_received += 1
+# 		self.jobs.put(job)
 
-	def handle_backend(self, package):
-		if package.msg == MsgCode.JOB_COMPLETE:
-			if package.encapsulated:
-				### Forward result from worker to client
-				self.say('Sending on frontend: {}'.format(package.encapsulated))
-				package.encapsulated.send(self.frontend)
+# 	def handle_backend(self, package):
+# 		if package.msg == MsgCode.JOB_COMPLETE:
+# 			if package.encapsulated:
+# 				### Forward result from worker to client
+# 				self.say('Sending on frontend: {}'.format(package.encapsulated))
+# 				package.encapsulated.send(self.frontend)
 
 
 
@@ -263,7 +308,20 @@ class JobQueueBroker(PingPongBroker):
 AddressManager.register_endpoint('market_frontend', 'tcp', 'localhost', 5562)
 AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
+
+
+
+
+
+
+
+
+
+from ping_pong import WorkerSM
+
 if __name__ == '__main__':
 	PingPongBroker(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
-	PingPongWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
+	# PingPongWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
+	# Server(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
+	# Client(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 

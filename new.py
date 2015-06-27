@@ -220,18 +220,38 @@ from transitions import Machine
 class PPWorker(Agent):
 	
 
-	
+	def EVENT_frontend_msg(self, msg):
+		msg = msg[1]
+		self.say(msg)
+		self.state = 3
+		if msg == MsgCode.PONG:
+			self.action_reset_timer()
+		else:
+			self.action_stop_timer()
+			self.action_do_work(msg)
 
-	
 	def event_timer_exp(self):
-		pass
+		self.state -= 1
+		if self.state > 0:
+			self.action_reset_timer()
+			self.action_send_ping()
+		else:
+			self.reset_timer()
+			self.action_reconnect()
+			self.action_send_ready()
 
 
-	def event_frontend_msg(self):
-		pass
+
+	def event_finish_work(self, result):
+		self.frontend.send_multipart(['', result])
+		self.action_reset_timer()
+		self.state = 3
+
+	
 
 	def action_start_timer(self):
-		self.timer = ioloop.DelayedCallback(self.event_timer_exp, 1000, self.loop).start()
+		self.timer = ioloop.DelayedCallback(self.event_timer_exp, 1000, self.loop)
+		self.timer.start()
 
 	def action_stop_timer(self):
 		self.timer.stop()
@@ -241,15 +261,18 @@ class PPWorker(Agent):
 		self.action_start_timer()
 
 	def action_connect_frontend(self):
-		self.stream,s = self.stream('frontend', zmq.DEALER, False, self.event_frontend_msg)
+		self.frontend,s = self.stream('frontend', zmq.DEALER, False, self.EVENT_frontend_msg)
 
 	def action_reconnect(self):
-		self.stream.close()
-		del self.stream
+		self.frontend.close()
+		del self.frontend
 		self.action_connect_frontend()
 
+
 	def action_do_work(self, task):
-		return 'Work done: %s'%task
+		result = 'Work done: %s'%task
+		self.event_finish_work(result)
+
 
 	def action_send_ping(self):
 		self.frontend.send_multipart(['', MsgCode.PING])
@@ -258,7 +281,10 @@ class PPWorker(Agent):
 		self.frontend.send_multipart(['', MsgCode.STATUS_READY])
 
 	
-	
+	def setup(self):
+		self.state = 3
+		self.action_connect_frontend()
+		self.action_start_timer()
 
 
 
@@ -317,11 +343,11 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 
 
-from ping_pong import WorkerSM
+
 
 if __name__ == '__main__':
 	PingPongBroker(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
-	# PingPongWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
+	PPWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 	# Server(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
 	# Client(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 

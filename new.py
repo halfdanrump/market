@@ -147,7 +147,7 @@ class PingPongBroker(Agent):
 	def handle_worker_msg(self, msg):
 		worker_addr, payload = msg[0], msg[2]
 		self.say('On backend: {}'.format(payload))
-		self.simulate_overload()
+		self.simulate_overload(0.2)
 		self.add_worker(worker_addr)
 		self.backend_socket.send_multipart([worker_addr, "", MsgCode.PONG])
 
@@ -236,7 +236,7 @@ class PPWorker(Agent):
 			self.action_reset_timer()
 			self.action_send_ping()
 		else:
-			self.reset_timer()
+			self.action_reset_timer()
 			self.action_reconnect()
 			self.action_send_ready()
 
@@ -245,9 +245,6 @@ class PPWorker(Agent):
 	def event_finish_work(self, result):
 		self.frontend.send_multipart(['', result])
 		self.action_reset_timer()
-		self.state = 3
-
-	
 
 	def action_start_timer(self):
 		self.timer = ioloop.DelayedCallback(self.event_timer_exp, 1000, self.loop)
@@ -282,18 +279,85 @@ class PPWorker(Agent):
 
 	
 	def setup(self):
-		self.state = 3
+		self.state = 6
 		self.action_connect_frontend()
 		self.action_start_timer()
 
 
 
-	# def recv_jon(self, msg):
+class PPStateWorker(Agent):
 
-	def broker_expired(self):
-		if self.broker_aliveness <= 0: return True
-		else: return False
+	states = ['connecting', 'idle', 'working']
+
+	def __init__(self, *args, **kwargs):
+		super(PPStateWorker, self).__init__(*args, **kwargs)
+		self.machine = Machine(model = self, states = PPStateWorker.states, initial = 'connecting')
 		
+		self.machine.add_transition(trigger = 'complete_connect', source = 'connecting', dest = 'idle', after = ['send_ready', 'start_timer', 'reset_alive'])
+		
+		self.machine.add_transition(trigger = 'recv_job', source = 'idle', dest = 'working', after = ['reset_alive', 'stop_timer'])
+		self.machine.add_transition(trigger = 'recv_not_job', source = 'idle', dest = 'idle', after = ['reset_alive', 'reset_timer'])
+		self.machine.add_transition(trigger = 'broker_expired', source = 'idle', dest = 'idle', after = ['decrement_alive', 'send_ping', 'reset_timer'])
+		self.machine.add_transition(trigger = 'broker_dead', source = 'idle', dest = 'connecting', after = ['reset_alive', 'reconnect_frontend', 'send_ready'])
+		
+		self.machine.add_transition(trigger = 'job_sent', source = 'working', dest = 'idle', after = ['reset_timer'])
+		self.machine.add_transition(trigger = 'fail_job', source = 'working', dest = 'idle', after = ['send_error', 'reset_timer'])
+
+	def connect_frontend(self):
+		self.frontend,s = self.stream('frontend', zmq.DEALER, False, self.EVENT_frontend_msg)
+
+	def reconnect_frontend(self):
+		self.frontend.close()
+		del self.frontend
+		self.connect_frontend()
+		self.complete_connect()
+
+	def send_ping(self):
+		self.frontend.send_multipart(['', MsgCode.PING])
+
+	def send_ready(self):
+		self.frontend.send_multipart(['', MsgCode.STATUS_READY])
+
+	def decrement_alive(self):
+		self.alive -= 1
+
+	def reset_alive(self):
+		self.alive = 0
+
+	def start_timer(self):
+		self.timer = ioloop.DelayedCallback(self.event_timer_exp, 1000, self.loop)
+		self.timer.start()
+
+	def stop_timer(self):
+		self.timer.stop()
+
+	def reset_timer(self):
+		self.stop_timer()
+		self.start_timer()
+
+	def event_timer_exp(self):
+		if self.alive > 0:
+			self.broker_expired()
+		else:
+			self.broker_dead()
+			
+	def EVENT_frontend_msg(self, msg):
+		msg = msg[1]
+		self.say(msg)
+		if msg == MsgCode.PONG:
+			self.recv_not_job()
+		else:
+			self.recv_job()
+			result = self.do_work()
+			self.frontend.send_multipart(['', result])
+			self.job_sent()
+
+
+	def setup(self):
+		self.connect_frontend()
+		self.complete_connect()
+		
+	
 		
 	
 # class JobQueueBroker(PingPongBroker):
@@ -347,7 +411,7 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 5563)
 
 if __name__ == '__main__':
 	PingPongBroker(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
-	PPWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
+	PPStateWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 	# Server(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
 	# Client(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 

@@ -1,17 +1,15 @@
 from __future__ import print_function
-import sys
+from zmq.eventloop import ioloop, zmqstream
 from multiprocessing import Process
-from threading import Thread, Event
 import abc
 from redis import Redis
 import zmq
 from time import sleep
 from random import random
 from datetime import datetime
-from collections import namedtuple
 from copy import copy
 from collections import deque
-import re
+
 class MsgCode:
 	STATUS_READY = "READY"
 	ORDER_RECEIVED = "ORDER VERIFIED"

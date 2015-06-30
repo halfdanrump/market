@@ -1,9 +1,7 @@
-from uuid import uuid4
-import zmq
-from zmq.eventloop import ioloop, zmqstream
-from new import Agent
+from lib import *
+
 from datetime import datetime, timedelta
-from lib import AddressManager, MsgCode
+
 from heapdict import heapdict
 
 class PingPongWorker(Agent):
@@ -101,7 +99,7 @@ class PingPongBroker(Agent):
 	def handle_worker_msg(self, msg):
 		worker_addr, payload = msg[0], msg[2]
 		self.say('On backend: {}'.format(payload))
-		self.simulate_overload(0)
+		self.simulate_overload(0.2)
 		self.add_worker(worker_addr)
 		self.backend_socket.send_multipart([worker_addr, "", MsgCode.PONG])
 

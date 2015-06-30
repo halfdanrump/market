@@ -1,6 +1,6 @@
 from lib import *
 from uuid import uuid4
-
+from ping_pong import PingPongBroker
 from datetime import datetime
 
 		
@@ -384,7 +384,7 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 6002)
 
 if __name__ == '__main__':
 	PingPongBroker(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
-	PingPongWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
+	PPWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 	# Server(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
 	# Client(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 

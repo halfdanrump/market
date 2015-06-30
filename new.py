@@ -1,69 +1,8 @@
+from lib import *
 from uuid import uuid4
-import zmq
-from zmq.eventloop import ioloop, zmqstream
-from multiprocessing import Process
-import abc
+
 from datetime import datetime
-from lib import AddressManager, MsgCode
-from random import random
 
-class Agent(Process):
-
-	__metaclass__ = abc.ABCMeta
-
-	def __init__(self, name, endpoints):
-		Process.__init__(self)
-		### Make assertions about endpoints
-		self.endpoints = endpoints		
-		self.context = zmq.Context()
-		self.loop = ioloop.IOLoop.instance()
-		
-	def get_endpoint(self, name):
-		return self.endpoints[name]
-
-	def stream(self, name, socket_type, bind, handler):
-		""" create a new stream """
-		socket = self.context.socket(socket_type)
-		# print(socket)
-		endpoint = self.get_endpoint(name)
-		if bind: 
-			address = AddressManager.get_bind_address(endpoint)
-			socket.bind(address)
-		else:
-			address = AddressManager.get_connect_address(endpoint)
-			socket.connect(address)
-		stream = zmqstream.ZMQStream(socket)
-		stream.on_recv(handler)	
-		# setattr(self, name + '_stream', stream)
-		# setattr(self, name + '_socket', socket)
-		return stream, socket
-	
-	def simulate_overload(self, probability = 0.1):
-		""" Simulate CPU overload by sleeping for some time. """
-		if random() < probability: 
-			self.say('I am busy')
-			sleep(5)
-
-	def simulate_crash(self, probability = 0.1):
-		""" Simulate crash forcing IndexError"""
-		if random() < probability: 
-			l = list()
-			l[0]
-
-	def run(self):
-		""" overrides Process.run(). This will be called when start() is called """
-		self.say('Setting up agent...')
-		self.setup()
-		self.say('Starting ioloop...')
-		self.loop.start()
-
-	def say(self, msg):
-		print('{} - {}: {}'.format(datetime.now().strftime('%H:%M:%S'), self.name, msg))
-
-	@abc.abstractmethod
-	def setup(self):
-		""" Will usually be run a single time when the process is started. Should be used to create sockets, bind handlers, create instance variables and so on. """
-		return
 		
 	
 
@@ -85,7 +24,6 @@ class Server(Agent):
 		self.stream, self.socket = self.stream('backend', zmq.ROUTER, True, self.handle_socket)
 
 
-from time import sleep
 
 class Client(Agent):
 	i = 0
@@ -109,11 +47,6 @@ class Client(Agent):
 		ioloop.DelayedCallback(self.reconnect, 30000, self.loop).start()
 		self.stream, self.socket = self.stream('frontend', zmq.DEALER, False, self.handle_socket)
 		self.socket.send_multipart(["", 'READY %s'%self.name])
-
-
-
-from datetime import datetime, timedelta
-from heapdict import heapdict
 
 
 

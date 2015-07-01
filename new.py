@@ -2,7 +2,7 @@ from lib import *
 from uuid import uuid4
 from ping_pong import PingPongBroker
 from datetime import datetime
-
+import ujson
 		
 	
 
@@ -60,16 +60,18 @@ class PPWorker(Agent):
 	
 
 	def EVENT_frontend_msg(self, msg):
-		msg = msg[1]
-		self.say(msg)
+		payload = ujson.loads(msg[0])
+		self.say(payload)
 		self.state = 3
-		if msg == MsgCode.PONG:
+		if payload['status'] == MsgCode.PONG:
 			self.action_reset_timer()
 		else:
 			self.action_stop_timer()
 			self.action_do_work(msg)
+			self.state = 3
 
 	def event_timer_exp(self):
+		self.say(self.state)
 		self.state -= 1
 		if self.state > 0:
 			self.action_reset_timer()
@@ -79,10 +81,8 @@ class PPWorker(Agent):
 			self.action_reconnect()
 			self.action_send_ready()
 
-
-
 	def event_finish_work(self, result):
-		self.frontend.send_multipart(['', result])
+		self.send_result(result)
 		self.action_reset_timer()
 
 	def action_start_timer(self):
@@ -100,6 +100,7 @@ class PPWorker(Agent):
 		self.frontend,s = self.stream('frontend', zmq.DEALER, False, self.EVENT_frontend_msg)
 
 	def action_reconnect(self):
+		self.say('Reconnecting...')
 		self.frontend.close()
 		del self.frontend
 		self.action_connect_frontend()
@@ -111,14 +112,17 @@ class PPWorker(Agent):
 
 
 	def action_send_ping(self):
-		self.frontend.send_multipart(['', MsgCode.PING])
+		self.frontend.send(ujson.dumps({'status': MsgCode.PING}))
 
 	def action_send_ready(self):
-		self.frontend.send_multipart(['', MsgCode.STATUS_READY])
+		self.frontend.send(ujson.dumps({'status': MsgCode.STATUS_READY}))
+
+	def action_send_result(self, result):
+		self.frontend.send(ujson.dumps({'status': MsgCode.STATUS_READY, 'msg': result}))
 
 	
 	def setup(self):
-		self.state = 6
+		self.state = 3
 		self.action_connect_frontend()
 		self.action_start_timer()
 
@@ -207,52 +211,35 @@ from collections import OrderedDict
 
 class StateBroker(Agent):
 
-	# states = ['connecting', 'accepting', 'full']
-	# transitions = [
-	# 	{'source' : 'accepting', 'trigger' : 'recv_ready', 'dest' : 'accepting', 'after' : 'add_worker'},
-	# 	{'source' : 'accepting', 'trigger' : 'recv_result', 'dest' : 'accepting', 'after' :},
-	# 	{'source' : 'accepting', 'trigger' :, 'dest' : 'accepting', 'after' :},
-	# 	{'source' : 'accepting', 'trigger' :, 'dest' : 'accepting', 'after' :},
-	# 	{'source' : 'accepting', 'trigger' :, 'dest' : 'accepting', 'after' :},
-	# 	{'source' :, 'trigger' :, 'dest' :, 'after' :},
-	# ]
-
-
-	# }
-	def __init__(self, *args, **kwargs):
-		super(StateBroker).__init__(*args, **kwargs)
-		self.workers = OrderedDict() ### Ordered map from worker_addr -> timer. Used both as a queue of idle workers, and to get store worker timers
-		self.in_progress = {} ### map from job_token -> client_id. Used to keep track of jobs assigned to workers and to store the address of the client that made the request
+	# def __init__(self, *args, **kwargs):
+	# 	super(StateBroker, self).__init__(*args, **kwargs)
+		
 
 	def setup(self):
-		self.connect_frontend()
-		self.connect_backend()
-		self.complete_connect()
-
-	def connect_frontend(self):
-		self.frontend = self.stream('frontend', zmq.ROUTER, True, self.EVENT_frontend_recv)
-
-	def connect_backend(self):
-		self.frontend = self.stream('backend', zmq.ROUTER, True, self.EVENT_backend_recv)
-
+		self.workers = OrderedDict() ### Ordered map from worker_addr -> timer. Used both as a queue of idle workers, and to get store worker timers
+		self.in_progress = {} ### map from job_token -> client_id. Used to keep track of jobs assigned to workers and to store the address of the client that made the request
+		self.__connect_frontend()
+		self.__connect_backend()
+	
 	def EVENT_frontend_recv(self, msg):
-		client, job = msg[0], msg[2]
-		self.recv_job()
+		client, payload = msg[0], ujson.loads(msg[1])
 		if len(self.workers) >= 0:
-			self.forward_job(client, job)
+			self.forward_job(client, payload['job'])
 		else:
 			self.deny_request(client)
 
 	def EVENT_backend_recv(self, msg):
-		# if len(msg) == 
-		worker = msg[0]
-		worker, token, result = msg[::2]
-		if result == MsgCode.STATUS_READY:
+		worker, payload = msg[0], ujson.loads(msg[1])
+		if payload['status'] == MsgCode.STATUS_READY:
 			pass
-		elif result == MsgCode.ERROR:
-			self.forward_error(token, result)
+		elif payload['status'] == MsgCode.SUCCESS:
+			self.forward_result(payload['token'], payload['msg'])
+		elif payload['status'] == MsgCode.ERROR:
+			self.forward_error(payload['token'], payload['msg'])
+		elif payload['status'] == MsgCode.PING:
+			pass
 		else:
-			self.forward_result(token, result)
+			raise Exception('Worker status must be either READY, SUCCESS, ERROR or PING')
 		self.add_worker(worker)
 
 	def event_expire_worker(self, addr):
@@ -263,7 +250,6 @@ class StateBroker(Agent):
 	def add_worker(self, worker_addr):
 		self.__store_worker_addr(worker_addr)
 		self.__send_pong(worker_addr)
-		self.__restart_worker_timer(worker_addr)
 
 	def forward_job(self, client, job):
 		worker = self.__get_ready_worker()
@@ -284,14 +270,20 @@ class StateBroker(Agent):
 	def deny_request(self, client):
 		self.frontend.send_multipart([client, "", MsgCode.QUEUE_FULL])
 
+	def __connect_frontend(self):
+		self.frontend, s = self.stream('frontend', zmq.ROUTER, True, self.EVENT_frontend_recv)
+
+	def __connect_backend(self):
+		self.backend, s = self.stream('backend', zmq.ROUTER, True, self.EVENT_backend_recv)
+
 	def __send_pong(self, worker_addr):
-		self.backend.send_multipart([worker_addr, "", Msg.PONG])
+		self.backend.send_multipart([worker_addr, ujson.dumps({'status': MsgCode.PONG})])
 
 	def __send_job(self, job, token, worker_addr):
-		self.backend.send_multipart([worker_addr, "", token, "", job])
+		self.backend.send_multipart([worker_addr, ujson.dumps({'token': token, 'msg': job})])
 
 	def __send_result(client, result):
-		self.frontend.send_multipart([client, "", result])
+		self.frontend.send_multipart([client, ujson.dumps({'msg':result})])
 
 	def __store_worker_addr(self, addr):
 		timer = ioloop.DelayedCallback(lambda: self.event_expire_worker(addr), 5000, self.loop)
@@ -311,21 +303,6 @@ class StateBroker(Agent):
 
 	def __get_job_client(self, token):
 		return self.in_progress[token]
-
-	
-
-
-	# def __start_worker_timer(self, addr):
-	# 	self.timers[addr] = ioloop.DelayedCallback(lambda: self.event_expire_worker(addr), 5000, self.loop)
-	# 	self.timers[addr].start()
-
-	# def __stop_worker_timer(self, addr):
-	# 	timer = self.timers[addr]
-	# 	timer.stop()
-
-	# def __restart_worker_timer(self, addr):
-	# 	self.__stop_worker_timer(addr)
-	# 	self.__start_worker_timer(addr)
 
 	def __generate_job_id(self):
 		return uuid4().HEX
@@ -383,7 +360,7 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 6002)
 
 
 if __name__ == '__main__':
-	PingPongBroker(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
+	StateBroker(name = 'server', endpoints = {'backend' : 'market_backend', 'frontend': 'market_frontend'}).start()
 	PPWorker(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()
 	# Server(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
 	# Client(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()

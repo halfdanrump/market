@@ -72,7 +72,6 @@ class PPWorker(Agent):
 
 
 	def event_timer_exp(self):
-		self.say(self.state)
 		self.state -= 1
 		if self.state > 0:
 			self.action_reset_timer()
@@ -267,6 +266,7 @@ class StateBroker(Agent):
 		timer = self.workers[addr]
 		timer.stop()
 		del self.workers[addr]
+		# del timer
 	
 	def add_worker(self, worker_addr):
 		self.__store_worker_addr(worker_addr)
@@ -307,6 +307,8 @@ class StateBroker(Agent):
 		self.frontend.send_multipart([client, ujson.dumps({'msg':result})])
 
 	def __store_worker_addr(self, addr):
+		if self.workers.has_key(addr):
+			self.workers[addr].stop()
 		timer = ioloop.DelayedCallback(lambda: self.event_expire_worker(addr), 5000, self.loop)
 		timer.start()
 		self.workers[addr] = timer

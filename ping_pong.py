@@ -67,6 +67,10 @@ class PingPongWorker(Agent):
 
 
 class PingPongBroker(Agent):
+	"""
+	This implementation is incomplete. It does not expire workers, and it cannot accept jobs. It has no frontend.
+	"""
+
 	WORKER_EXPIRE_SECONDS = 3
 
 	def setup(self):

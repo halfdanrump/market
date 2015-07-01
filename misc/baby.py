@@ -1,12 +1,24 @@
 from time import sleep
+from lib import *
 
 HOSPITAL_FEES = 1000000
 
-class Human(object):
+class Animal(Agent):
+	
+	def __init__(self, preference = 0.5):
+		assert isinstance(preference, float) and preference > 0 and preference < 1
+		self.preference = preference
+
+	def animal_style(self):
+		pass
+
+
+
+class Human(Animal):
 	def breed(self, partner):
 
 
-class Baby(Animal):
+class Baby(Human):
 	def __new__(self, mother, father, savings):
 		assert isinstance(mother, Human)
 		assert isinstance(father, Human)

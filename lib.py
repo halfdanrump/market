@@ -22,6 +22,7 @@ class MsgCode:
 	PONG = "PONG"
 	DISCONNECT = "DISCONNECT"
 	QUEUE_FULL = "FULL"
+	WORK = "WORK"
 
 
 

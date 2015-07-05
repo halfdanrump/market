@@ -67,8 +67,9 @@ class PPWorker(Agent):
 			self.action_reset_timer()
 		elif payload['status'] == MsgCode.WORK:
 			self.action_stop_timer()
-			reply = {'result': self.action_do_work(payload['job']), 'token': payload['token']}
+			reply = {'result': self.action_do_work(payload['job']), 'token': payload['token'], 'status': MsgCode.SUCCESS}
 			self.state = 3
+			self.frontend.send(ujson.dumps(reply))
 
 
 	def event_timer_exp(self):
@@ -83,6 +84,7 @@ class PPWorker(Agent):
 
 	def event_finish_work(self):
 		self.action_reset_timer()
+
 
 	def action_start_timer(self):
 		self.timer = ioloop.DelayedCallback(self.event_timer_exp, 1000, self.loop)
@@ -104,12 +106,10 @@ class PPWorker(Agent):
 		del self.frontend
 		self.action_connect_frontend()
 
-
 	def action_do_work(self, task):
 		result = 'Work done: %s'%task
 		self.event_finish_work()
 		return result
-
 
 	def action_send_ping(self):
 		self.frontend.send(ujson.dumps({'status': MsgCode.PING}))
@@ -253,7 +253,7 @@ class StateBroker(Agent):
 		if status == MsgCode.STATUS_READY:
 			pass
 		elif status == MsgCode.SUCCESS:
-			self.forward_result(payload['token'], payload['msg'])
+			self.forward_result(payload['token'], payload['result'])
 		elif status == MsgCode.ERROR:
 			self.forward_error(payload['token'], payload['msg'])
 		elif status == MsgCode.PING:
@@ -303,7 +303,7 @@ class StateBroker(Agent):
 	def __send_job(self, job, token, worker_addr):
 		self.backend.send_multipart([worker_addr, ujson.dumps({'status': MsgCode.WORK, 'token': token, 'job': job})])
 
-	def __send_result(client, result):
+	def __send_result(self, client, result):
 		self.frontend.send_multipart([client, ujson.dumps({'msg':result})])
 
 	def __store_worker_addr(self, addr):

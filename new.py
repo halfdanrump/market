@@ -128,79 +128,7 @@ class PPWorker(Agent):
 
 
 
-# class PPStateWorker(Agent):
 
-# 	states = ['connecting', 'idle', 'working']
-
-# 	def __init__(self, *args, **kwargs):
-# 		super(PPStateWorker, self).__init__(*args, **kwargs)
-# 		self.machine = Machine(model = self, states = PPStateWorker.states, initial = 'connecting')
-		
-# 		self.machine.add_transition(trigger = 'complete_connect', source = 'connecting', dest = 'idle', after = ['send_ready', 'start_timer', 'reset_alive'])
-		
-# 		self.machine.add_transition(trigger = 'recv_job', source = 'idle', dest = 'working', after = ['reset_alive', 'stop_timer'])
-# 		self.machine.add_transition(trigger = 'recv_not_job', source = 'idle', dest = 'idle', after = ['reset_alive', 'reset_timer'])
-# 		self.machine.add_transition(trigger = 'broker_expired', source = 'idle', dest = 'idle', after = ['decrement_alive', 'send_ping', 'reset_timer'])
-# 		self.machine.add_transition(trigger = 'broker_dead', source = 'idle', dest = 'connecting', after = ['reset_alive', 'reconnect_frontend', 'send_ready'])
-		
-# 		self.machine.add_transition(trigger = 'job_sent', source = 'working', dest = 'idle', after = ['reset_timer'])
-# 		self.machine.add_transition(trigger = 'fail_job', source = 'working', dest = 'idle', after = ['send_error', 'reset_timer'])
-
-# 	def connect_frontend(self):
-# 		self.frontend,s = self.stream('frontend', zmq.DEALER, False, self.EVENT_frontend_msg)
-
-# 	def reconnect_frontend(self):
-# 		self.frontend.close()
-# 		del self.frontend
-# 		self.connect_frontend()
-# 		self.complete_connect()
-
-# 	def send_ping(self):
-# 		self.frontend.send_multipart(['', MsgCode.PING])
-
-# 	def send_ready(self):
-# 		self.frontend.send_multipart(['', MsgCode.STATUS_READY])
-
-# 	def decrement_alive(self):
-# 		self.alive -= 1
-
-# 	def reset_alive(self):
-# 		self.alive = 0
-
-# 	def start_timer(self):
-# 		self.timer = ioloop.DelayedCallback(self.event_timer_exp, 2000, self.loop)
-# 		self.timer.start()
-
-# 	def stop_timer(self):
-# 		self.timer.stop()
-
-# 	def reset_timer(self):
-# 		self.stop_timer()
-# 		self.start_timer()
-
-# 	def event_timer_exp(self):
-# 		if self.alive > 0:
-# 			self.broker_expired()
-# 		else:
-# 			self.broker_dead()
-			
-# 	def EVENT_frontend_msg(self, msg):
-# 		msg = msg[1]
-# 		self.i += 1
-# 		self.say(str(self.i) + msg)
-# 		if msg == MsgCode.PONG:
-# 			self.recv_not_job()
-# 		else:
-# 			self.recv_job()
-# 			result = self.do_work()
-# 			self.frontend.send_multipart(['', result])
-# 			self.job_sent()
-
-
-# 	def setup(self):
-# 		self.i = 0
-# 		self.connect_frontend()
-# 		self.complete_connect()
 import inspect
 from termcolor import colored
 def debug(s):
@@ -227,10 +155,37 @@ class TraderClient(Agent):
 
 
 
-class StateBroker(Agent):
+# class Handler(object):
 
-	# def __init__(self, *args, **kwargs):
-	# 	super(StateBroker, self).__init__(*args, **kwargs)
+# 	def __call__(self):
+
+
+class WorkerQueue(OrderedDict):
+	
+
+	def put(self, worker_addr):
+		self.__store_worker_addr(worker_addr)
+
+	def popitem(self):
+		return __get_ready_worker()
+
+	def __store_worker_addr(self, addr):
+		if self.workers.has_key(addr):
+			self.workers[addr].stop()
+		timer = ioloop.DelayedCallback(lambda: self.event_expire_worker(addr), 5000, self.loop)
+		timer.start()
+		self.workers[addr] = timer
+
+	def __get_ready_worker(self):
+		addr, timer = self.workers.popitem()
+		timer.stop()
+		return addr
+
+
+
+class MarketBroker(Agent):
+
+	
 		
 
 	def setup(self):
@@ -331,7 +286,37 @@ class StateBroker(Agent):
 		return uuid4().hex
 
 
-		
+class AuctionBroker(MarketBroker):
+	def setup(self):
+		self.auctions = {}
+		self.__connect_frontend()
+		self.__connect_backend()
+
+	def EVENT_frontend_recv(self, msg):
+		client, payload = msg[0], ujson.loads(msg[1])
+		assert payload.has_key('auction')
+		assert payload.has_key('order')
+		if self.auctions.has_key(payload['auction']):
+			auction = self.auctions[payload['auction']]
+			self.forward_job(auction, payload['order'])
+		else:
+			self.deny_request(client)
+
+	def EVENT_backend_recv(self, msg):
+		worker, payload = msg[0], ujson.loads(msg[1])
+	
+		status = payload.get('status')
+		if status == MsgCode.STATUS_READY:
+			pass
+		elif status == MsgCode.SUCCESS:
+			self.forward_result(payload['token'], payload['result'])
+		elif status == MsgCode.ERROR:
+			self.forward_error(payload['token'], payload['msg'])
+		elif status == MsgCode.PING:
+			pass
+		else:
+			raise Exception('Worker status must be either READY, SUCCESS, ERROR or PING')
+		self.add_worker(worker)
 	
 # class JobQueueBroker(PingPongBroker):
 
@@ -384,7 +369,7 @@ AddressManager.register_endpoint('market_backend', 'tcp', 'localhost', 6002)
 
 if __name__ == '__main__':
 	TraderClient(name = 'trader', endpoints = {'backend' : 'market_frontend'}).start()
-	StateBroker(name = 'server', endpoints = {'backend' : 'market_backend', 'frontend': 'market_frontend'}).start()
+	MarketBroker(name = 'server', endpoints = {'backend' : 'market_backend', 'frontend': 'market_frontend'}).start()
 	PPWorker(name = 'worker', endpoints = {'frontend' : 'market_backend'}).start()
 	# Server(name = 'server', endpoints = {'backend' : 'market_backend'}).start()
 	# Client(name = 'client', endpoints = {'frontend' : 'market_backend'}).start()

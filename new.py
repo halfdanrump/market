@@ -163,21 +163,36 @@ class TraderClient(Agent):
 class WorkerQueue(OrderedDict):
 	
 
+	def __init__(self, expiration_msec = 3000, *args, **kwargs):
+		super(WorkerQueue, self).__init__(*args, **kwargs)
+		self._expiration_msec = expiration_msec
+
 	def put(self, worker_addr):
 		self.__store_worker_addr(worker_addr)
 
-	def popitem(self):
-		return __get_ready_worker()
+	def get(self):
+		addr, timer = self.popitem()
+		timer.stop()
+		return addr
+
+	def empty(self):
+		if len(self) == 0: return True
+		else: return False
 
 	def __store_worker_addr(self, addr):
-		if self.workers.has_key(addr):
-			self.workers[addr].stop()
-		timer = ioloop.DelayedCallback(lambda: self.event_expire_worker(addr), 5000, self.loop)
+		if self.has_key(addr):
+			self[addr].stop()
+		timer = ioloop.DelayedCallback(lambda: self.__expire_worker(addr), self._expiration_msec)
 		timer.start()
-		self.workers[addr] = timer
+		self[addr] = timer
+
+	def __expire_worker(self, addr):
+		timer = self[addr]
+		timer.stop()
+		del self[addr]
 
 	def __get_ready_worker(self):
-		addr, timer = self.workers.popitem()
+		addr, timer = self.popitem()
 		timer.stop()
 		return addr
 
@@ -189,14 +204,14 @@ class MarketBroker(Agent):
 		
 
 	def setup(self):
-		self.workers = OrderedDict() ### Ordered map from worker_addr -> timer. Used both as a queue of idle workers, and to get store worker timers
+		self.workers = WorkerQueue() ### Ordered map from worker_addr -> timer. Used both as a queue of idle workers, and to get store worker timers
 		self.in_progress = {} ### map from job_token -> client_id. Used to keep track of jobs assigned to workers and to store the address of the client that made the request
 		self.__connect_frontend()
 		self.__connect_backend()
 	
 	def EVENT_frontend_recv(self, msg):
 		client, payload = msg[0], ujson.loads(msg[1])
-		if len(self.workers) > 0:
+		if not self.workers.empty():
 			self.forward_job(client, payload['order'])
 		else:
 			self.deny_request(client)
@@ -217,18 +232,15 @@ class MarketBroker(Agent):
 			raise Exception('Worker status must be either READY, SUCCESS, ERROR or PING')
 		self.add_worker(worker)
 
-	def event_expire_worker(self, addr):
-		timer = self.workers[addr]
-		timer.stop()
-		del self.workers[addr]
+	
 		# del timer
 	
 	def add_worker(self, worker_addr):
-		self.__store_worker_addr(worker_addr)
+		self.workers.put(worker_addr)
 		self.__send_pong(worker_addr)
 
 	def forward_job(self, client, job):
-		worker = self.__get_ready_worker()
+		worker = self.workers.get()
 		token = self.__generate_job_id()
 		self.__store_pending_job(token, client)
 		self.__send_job(job, token, worker)
@@ -261,17 +273,17 @@ class MarketBroker(Agent):
 	def __send_result(self, client, result):
 		self.frontend.send_multipart([client, ujson.dumps({'msg':result})])
 
-	def __store_worker_addr(self, addr):
-		if self.workers.has_key(addr):
-			self.workers[addr].stop()
-		timer = ioloop.DelayedCallback(lambda: self.event_expire_worker(addr), 5000, self.loop)
-		timer.start()
-		self.workers[addr] = timer
+	# def __store_worker_addr(self, addr):
+	# 	if self.workers.has_key(addr):
+	# 		self.workers[addr].stop()
+	# 	timer = ioloop.DelayedCallback(lambda: self.event_expire_worker(addr), 5000, self.loop)
+	# 	timer.start()
+	# 	self.workers[addr] = timer
 
-	def __get_ready_worker(self):
-		addr, timer = self.workers.popitem()
-		timer.stop()
-		return addr
+	# def __get_ready_worker(self):
+	# 	addr, timer = self.workers.popitem()
+	# 	timer.stop()
+	# 	return addr
 
 	def __store_pending_job(self, token, client):
 		self.in_progress[token] = client
